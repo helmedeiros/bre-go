@@ -22,21 +22,42 @@ help:
 tools:
 	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
 
+# Each gate vacuously passes when the module has no Go files yet.
+# As soon as the first *.go lands, the guards drop through to the
+# real tool invocation. This lets the gates be on from commit one.
+HAS_GO := $(shell find . -name '*.go' -not -path './.git/*' -print -quit)
+
 lint:
+ifneq ($(HAS_GO),)
 	golangci-lint run
+else
+	@echo "no go files to lint -- skipping"
+endif
 
 vet:
+ifneq ($(HAS_GO),)
 	$(GO) vet $(PKG)
+else
+	@echo "no go files to vet -- skipping"
+endif
 
 test:
+ifneq ($(HAS_GO),)
 	$(GO) test -race -count=1 $(PKG)
+else
+	@echo "no go files to test -- skipping"
+endif
 
 cover:
+ifneq ($(HAS_GO),)
 	$(GO) test -race -count=1 -covermode=atomic -coverprofile=$(COVER_OUT) $(PKG)
 	@total=$$($(GO) tool cover -func=$(COVER_OUT) | awk '/^total:/{print $$3}' | tr -d '%'); \
 	echo "coverage: $$total%"; \
 	awk -v have="$$total" -v need="$(COVER_MIN)" 'BEGIN{ exit (have+0 >= need+0) ? 0 : 1 }' \
 	  || { echo "coverage below threshold ($(COVER_MIN)%)"; exit 1; }
+else
+	@echo "no go files to measure -- skipping"
+endif
 
 cover-html: cover
 	$(GO) tool cover -html=$(COVER_OUT)
