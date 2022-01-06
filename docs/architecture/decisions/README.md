@@ -12,4 +12,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 
 ## Index
 
-(empty - first ADRs land later this week)
+- [ADR-0001 Bounded Goals For This Project](0001-bounded-goals.md)
