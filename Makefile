@@ -20,7 +20,7 @@ help:
 	@echo "  clean       - remove generated coverage artifacts"
 
 tools:
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
 
 lint:
 	golangci-lint run
