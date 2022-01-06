@@ -13,3 +13,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 ## Index
 
 - [ADR-0001 Bounded Goals For This Project](0001-bounded-goals.md)
+- [ADR-0002 Go As The Implementation Language](0002-go-as-the-language.md)
