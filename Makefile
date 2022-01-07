@@ -51,7 +51,13 @@ endif
 cover:
 ifneq ($(HAS_GO),)
 	$(GO) test -race -count=1 -covermode=atomic -coverprofile=$(COVER_OUT) $(PKG)
-	@total=$$($(GO) tool cover -func=$(COVER_OUT) | awk '/^total:/{print $$3}' | tr -d '%'); \
+	@# A coverage.out with only the "mode:" header means no statements
+	@# were measured anywhere -- threshold is vacuously satisfied.
+	@if [ "$$(wc -l < $(COVER_OUT) | tr -d ' ')" -le 1 ]; then \
+	  echo "coverage: no executable statements -- vacuously pass"; \
+	  exit 0; \
+	fi; \
+	total=$$($(GO) tool cover -func=$(COVER_OUT) | awk '/^total:/{print $$3}' | tr -d '%'); \
 	echo "coverage: $$total%"; \
 	awk -v have="$$total" -v need="$(COVER_MIN)" 'BEGIN{ exit (have+0 >= need+0) ? 0 : 1 }' \
 	  || { echo "coverage below threshold ($(COVER_MIN)%)"; exit 1; }
