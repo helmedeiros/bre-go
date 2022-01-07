@@ -10,4 +10,7 @@ once a first tagged release is cut.
 
 ### Added
 
-- README and MIT LICENSE.
+- ADR-0001 Bounded Goals, ADR-0002 Go as the language, ADR-0003 the engine port.
+- Makefile and CI workflow running lint + vet + test + coverage threshold from commit one (gates are vacuously green while the codebase is empty).
+- `engine` package: `Engine` interface, `Context`, `Result` value types, contract test scaffold.
+
