@@ -9,6 +9,19 @@ package inmemory
 
 import "github.com/helmedeiros/bre-go/engine"
 
+// Rule describes a single rule held by an in-memory engine. The
+// engine evaluates Condition against each Context.Input; when it
+// returns true the rule's Name is appended to Result.Matched.
+//
+// A Rule with a nil Condition is treated as never matching --
+// callers register such rules during construction and fill the
+// Condition in before Execute. Naming is required; an empty Name
+// is rejected at AddRule time so Matched output stays meaningful.
+type Rule struct {
+	Name      string
+	Condition func(input interface{}) bool
+}
+
 // New constructs an empty engine. Rules are added with AddRule.
 func New() *Engine {
 	return &Engine{}
@@ -16,10 +29,22 @@ func New() *Engine {
 
 // Engine is an in-memory implementation of engine.Engine that
 // holds rules in a slice and evaluates them in insertion order.
-type Engine struct{}
+type Engine struct {
+	rules []Rule
+}
 
-// Execute satisfies engine.Engine. The empty engine has no rules
-// to evaluate, so the result is empty.
+// AddRule registers a rule. Returns an error if the rule's Name
+// is empty -- a nameless match would be invisible in Result.Matched.
+func (e *Engine) AddRule(r Rule) error {
+	if r.Name == "" {
+		return errEmptyRuleName
+	}
+	e.rules = append(e.rules, r)
+	return nil
+}
+
+// Execute satisfies engine.Engine. With no rules the result is
+// empty; rule matching lands in a follow-up commit.
 func (*Engine) Execute(_ engine.Context) engine.Result {
 	return engine.Result{}
 }
