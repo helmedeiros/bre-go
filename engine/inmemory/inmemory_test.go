@@ -47,3 +47,79 @@ func TestAddRuleRejectsEmptyName(t *testing.T) {
 		t.Fatalf("AddRule: want ErrEmptyRuleName, got %v", err)
 	}
 }
+
+func TestExecuteMatchesRulesWhoseConditionIsTrue(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "always",
+		Condition: func(interface{}) bool { return true },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "never",
+		Condition: func(interface{}) bool { return false },
+	})
+
+	got := e.Execute(engine.Context{Input: "x"})
+
+	if len(got.Matched) != 1 || got.Matched[0] != "always" {
+		t.Fatalf("Matched: want [always], got %v", got.Matched)
+	}
+}
+
+func TestExecutePreservesInsertionOrder(t *testing.T) {
+	e := inmemory.New()
+	for _, name := range []string{"first", "second", "third"} {
+		_ = e.AddRule(inmemory.Rule{
+			Name:      name,
+			Condition: func(interface{}) bool { return true },
+		})
+	}
+
+	got := e.Execute(engine.Context{Input: "x"})
+
+	want := []string{"first", "second", "third"}
+	if len(got.Matched) != len(want) {
+		t.Fatalf("Matched: want %v, got %v", want, got.Matched)
+	}
+	for i, n := range want {
+		if got.Matched[i] != n {
+			t.Errorf("Matched[%d]: want %q, got %q", i, n, got.Matched[i])
+		}
+	}
+}
+
+func TestExecuteUsesInputForConditionDecision(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name: "starts-with-a",
+		Condition: func(in interface{}) bool {
+			s, ok := in.(string)
+			return ok && len(s) > 0 && s[0] == 'a'
+		},
+	})
+
+	t.Run("matches when input starts with a", func(t *testing.T) {
+		got := e.Execute(engine.Context{Input: "apple"})
+		if len(got.Matched) != 1 {
+			t.Fatalf("Matched: want one match, got %v", got.Matched)
+		}
+	})
+
+	t.Run("does not match when input does not", func(t *testing.T) {
+		got := e.Execute(engine.Context{Input: "banana"})
+		if len(got.Matched) != 0 {
+			t.Fatalf("Matched: want empty, got %v", got.Matched)
+		}
+	})
+}
+
+func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{Name: "no-condition"})
+
+	got := e.Execute(engine.Context{Input: "x"})
+
+	if len(got.Matched) != 0 {
+		t.Fatalf("Matched: want empty, got %v", got.Matched)
+	}
+}

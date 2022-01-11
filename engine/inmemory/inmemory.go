@@ -43,8 +43,20 @@ func (e *Engine) AddRule(r Rule) error {
 	return nil
 }
 
-// Execute satisfies engine.Engine. With no rules the result is
-// empty; rule matching lands in a follow-up commit.
-func (*Engine) Execute(_ engine.Context) engine.Result {
-	return engine.Result{}
+// Execute satisfies engine.Engine. It evaluates each rule's
+// Condition against the Context.Input in insertion order. Every
+// rule whose Condition returns true has its Name appended to
+// Result.Matched. Output remains nil at this layer -- producing
+// outputs is the job of rule Actions, added next.
+func (e *Engine) Execute(ctx engine.Context) engine.Result {
+	out := engine.Result{}
+	for _, r := range e.rules {
+		if r.Condition == nil {
+			continue
+		}
+		if r.Condition(ctx.Input) {
+			out.Matched = append(out.Matched, r.Name)
+		}
+	}
+	return out
 }
