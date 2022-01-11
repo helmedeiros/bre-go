@@ -123,3 +123,59 @@ func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
 		t.Fatalf("Matched: want empty, got %v", got.Matched)
 	}
 }
+
+func TestExecuteRunsActionOfMatchingRule(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "doubler",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(in interface{}) interface{} { return in.(int) * 2 },
+	})
+
+	got := e.Execute(engine.Context{Input: 21})
+
+	if got.Output != 42 {
+		t.Fatalf("Output: want 42, got %v", got.Output)
+	}
+}
+
+func TestExecuteDoesNotRunActionOfUnmatchedRule(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "guarded",
+		Condition: func(interface{}) bool { return false },
+		Action: func(interface{}) interface{} {
+			t.Fatalf("Action of unmatched rule must not run")
+			return nil
+		},
+	})
+
+	got := e.Execute(engine.Context{Input: 1})
+
+	if got.Output != nil {
+		t.Fatalf("Output: want nil, got %v", got.Output)
+	}
+}
+
+func TestExecuteLaterMatchingActionWinsOnOutput(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "first",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(interface{}) interface{} { return "first" },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "second",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(interface{}) interface{} { return "second" },
+	})
+
+	got := e.Execute(engine.Context{Input: "x"})
+
+	if got.Output != "second" {
+		t.Fatalf("Output: want \"second\", got %v", got.Output)
+	}
+	if len(got.Matched) != 2 {
+		t.Fatalf("Matched: want both, got %v", got.Matched)
+	}
+}

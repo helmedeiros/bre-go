@@ -11,15 +11,22 @@ import "github.com/helmedeiros/bre-go/engine"
 
 // Rule describes a single rule held by an in-memory engine. The
 // engine evaluates Condition against each Context.Input; when it
-// returns true the rule's Name is appended to Result.Matched.
+// returns true the rule's Name is appended to Result.Matched and
+// the rule's Action (if any) is invoked to produce Result.Output.
 //
-// A Rule with a nil Condition is treated as never matching --
-// callers register such rules during construction and fill the
-// Condition in before Execute. Naming is required; an empty Name
-// is rejected at AddRule time so Matched output stays meaningful.
+// A Rule with a nil Condition is treated as never matching. A Rule
+// with a non-nil Condition but a nil Action contributes to Matched
+// and leaves Output untouched -- useful for rules that only
+// classify the input. Naming is required; an empty Name is
+// rejected at AddRule time so Matched output stays meaningful.
+//
+// When several matching rules carry an Action, later rules
+// overwrite the Output of earlier ones (insertion order); the
+// final Output is whichever Action ran last.
 type Rule struct {
 	Name      string
 	Condition func(input interface{}) bool
+	Action    func(input interface{}) interface{}
 }
 
 // New constructs an empty engine. Rules are added with AddRule.
@@ -56,6 +63,9 @@ func (e *Engine) Execute(ctx engine.Context) engine.Result {
 		}
 		if r.Condition(ctx.Input) {
 			out.Matched = append(out.Matched, r.Name)
+			if r.Action != nil {
+				out.Output = r.Action(ctx.Input)
+			}
 		}
 	}
 	return out
