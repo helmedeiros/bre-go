@@ -25,6 +25,17 @@ Required tools (the [`Makefile`](Makefile) will tell you what is missing once it
 
 Significant design choices are captured as Architecture Decision Records under [`docs/architecture/decisions/`](docs/architecture/decisions/). Before adding a non-trivial cross-cutting feature, open an ADR.
 
+## Adding a new engine adapter
+
+The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing callers depend on. Every adapter must:
+
+1. Live in its own sub-package under `engine/`.
+2. Expose a `New(...)` constructor that returns either `*Engine` (an adapter-specific type implementing `engine.Engine`) or the interface directly.
+3. **Never** expose adapter-specific types (rule structs, sessions, fact handles) outside the package boundary.
+4. Wire `enginetest.RunContractTests` from a `*_test.go` file with a Factory that builds a fresh engine + a SeedFunc that registers rules in the adapter's native shape. The contract suite drives the same behavioral assertions every adapter must satisfy.
+
+See `engine/inmemory/contract_test.go` for the wiring template.
+
 ## Reporting issues
 
 Open a GitHub issue. For security concerns, follow [SECURITY.md](SECURITY.md) and use the private advisory channel.
