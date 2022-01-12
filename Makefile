@@ -51,6 +51,11 @@ endif
 cover:
 ifneq ($(HAS_GO),)
 	$(GO) test -race -count=1 -covermode=atomic -coverprofile=$(COVER_OUT) $(PKG)
+	@# Drop test-only helper packages (anything ending in "test")
+	@# from the coverage profile before checking the threshold; these
+	@# packages exist to assist real tests and have no production code.
+	@grep -v '/enginetest/' $(COVER_OUT) > $(COVER_OUT).prod || true
+	@mv $(COVER_OUT).prod $(COVER_OUT)
 	@# A coverage.out with only the "mode:" header means no statements
 	@# were measured anywhere -- threshold is vacuously satisfied.
 	@if [ "$$(wc -l < $(COVER_OUT) | tr -d ' ')" -le 1 ]; then \
