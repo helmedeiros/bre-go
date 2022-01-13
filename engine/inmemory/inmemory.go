@@ -53,9 +53,13 @@ func (e *Engine) AddRule(r Rule) error {
 // Execute satisfies engine.Engine. It evaluates each rule's
 // Condition against the Context.Input in insertion order. Every
 // rule whose Condition returns true has its Name appended to
-// Result.Matched. Output remains nil at this layer -- producing
-// outputs is the job of rule Actions, added next.
-func (e *Engine) Execute(ctx engine.Context) engine.Result {
+// Result.Matched and its Action (if any) is invoked to set
+// Result.Output.
+//
+// The in-memory engine has no failure modes today, so the error
+// return is always nil. The signature exists so the port stays
+// uniform across adapters (see ADR-0005).
+func (e *Engine) Execute(ctx engine.Context) (engine.Result, error) {
 	out := engine.Result{}
 	for _, r := range e.rules {
 		if r.Condition == nil {
@@ -68,5 +72,5 @@ func (e *Engine) Execute(ctx engine.Context) engine.Result {
 			}
 		}
 	}
-	return out
+	return out, nil
 }

@@ -22,9 +22,17 @@ type Result struct {
 	Matched []string
 }
 
-// Engine evaluates rules against a Context and returns a Result.
-// Implementations live in sub-packages of this one and never
-// expose adapter-specific types across the package boundary.
+// Engine evaluates rules against a Context and returns a Result
+// plus an error. Implementations live in sub-packages of this one
+// and never expose adapter-specific types across the package
+// boundary.
+//
+// A successful evaluation with no rules matched is returned as
+// (Result{}, nil) -- the empty Result is well-defined and distinct
+// from failure. An adapter that cannot evaluate an input (bad
+// type, backend error, malformed rule definition) returns
+// (Result{}, err) with err wrapping the underlying cause so
+// callers can use errors.Is / errors.As.
 type Engine interface {
-	Execute(ctx Context) Result
+	Execute(ctx Context) (Result, error)
 }

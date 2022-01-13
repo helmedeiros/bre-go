@@ -15,7 +15,10 @@ func TestNewReturnsAnEngine(t *testing.T) {
 func TestEmptyEngineProducesEmptyResult(t *testing.T) {
 	e := inmemory.New()
 
-	got := e.Execute(engine.Context{Input: "anything"})
+	got, err := e.Execute(engine.Context{Input: "anything"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if got.Output != nil {
 		t.Errorf("Output: want nil, got %v", got.Output)
@@ -59,7 +62,10 @@ func TestExecuteMatchesRulesWhoseConditionIsTrue(t *testing.T) {
 		Condition: func(interface{}) bool { return false },
 	})
 
-	got := e.Execute(engine.Context{Input: "x"})
+	got, err := e.Execute(engine.Context{Input: "x"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if len(got.Matched) != 1 || got.Matched[0] != "always" {
 		t.Fatalf("Matched: want [always], got %v", got.Matched)
@@ -75,7 +81,10 @@ func TestExecutePreservesInsertionOrder(t *testing.T) {
 		})
 	}
 
-	got := e.Execute(engine.Context{Input: "x"})
+	got, err := e.Execute(engine.Context{Input: "x"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	want := []string{"first", "second", "third"}
 	if len(got.Matched) != len(want) {
@@ -99,14 +108,20 @@ func TestExecuteUsesInputForConditionDecision(t *testing.T) {
 	})
 
 	t.Run("matches when input starts with a", func(t *testing.T) {
-		got := e.Execute(engine.Context{Input: "apple"})
+		got, err := e.Execute(engine.Context{Input: "apple"})
+		if err != nil {
+			t.Fatalf("Execute: unexpected error: %v", err)
+		}
 		if len(got.Matched) != 1 {
 			t.Fatalf("Matched: want one match, got %v", got.Matched)
 		}
 	})
 
 	t.Run("does not match when input does not", func(t *testing.T) {
-		got := e.Execute(engine.Context{Input: "banana"})
+		got, err := e.Execute(engine.Context{Input: "banana"})
+		if err != nil {
+			t.Fatalf("Execute: unexpected error: %v", err)
+		}
 		if len(got.Matched) != 0 {
 			t.Fatalf("Matched: want empty, got %v", got.Matched)
 		}
@@ -117,7 +132,10 @@ func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
 	e := inmemory.New()
 	_ = e.AddRule(inmemory.Rule{Name: "no-condition"})
 
-	got := e.Execute(engine.Context{Input: "x"})
+	got, err := e.Execute(engine.Context{Input: "x"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if len(got.Matched) != 0 {
 		t.Fatalf("Matched: want empty, got %v", got.Matched)
@@ -132,7 +150,10 @@ func TestExecuteRunsActionOfMatchingRule(t *testing.T) {
 		Action:    func(in interface{}) interface{} { return in.(int) * 2 },
 	})
 
-	got := e.Execute(engine.Context{Input: 21})
+	got, err := e.Execute(engine.Context{Input: 21})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if got.Output != 42 {
 		t.Fatalf("Output: want 42, got %v", got.Output)
@@ -150,7 +171,10 @@ func TestExecuteDoesNotRunActionOfUnmatchedRule(t *testing.T) {
 		},
 	})
 
-	got := e.Execute(engine.Context{Input: 1})
+	got, err := e.Execute(engine.Context{Input: 1})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if got.Output != nil {
 		t.Fatalf("Output: want nil, got %v", got.Output)
@@ -170,7 +194,10 @@ func TestExecuteLaterMatchingActionWinsOnOutput(t *testing.T) {
 		Action:    func(interface{}) interface{} { return "second" },
 	})
 
-	got := e.Execute(engine.Context{Input: "x"})
+	got, err := e.Execute(engine.Context{Input: "x"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
+	}
 
 	if got.Output != "second" {
 		t.Fatalf("Output: want \"second\", got %v", got.Output)

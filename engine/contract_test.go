@@ -21,7 +21,9 @@ func TestEnginePortIsDefined(t *testing.T) {
 
 // nilEngine is a compile-time witness that engine.Engine is
 // implementable. It is intentionally trivial -- the first real
-// adapter (engine/inmemory) lands next.
+// adapter is engine/inmemory.
 type nilEngine struct{}
 
-func (nilEngine) Execute(engine.Context) engine.Result { return engine.Result{} }
+func (nilEngine) Execute(engine.Context) (engine.Result, error) {
+	return engine.Result{}, nil
+}
