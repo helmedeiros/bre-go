@@ -16,3 +16,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 - [ADR-0002 Go As The Implementation Language](0002-go-as-the-language.md)
 - [ADR-0003 The Engine Port](0003-engine-port.md)
 - [ADR-0004 Pre-Generics Input Handling](0004-pre-generics-input-handling.md)
+- [ADR-0005 engine.Engine.Execute Returns An Error](0005-engine-execute-returns-error.md)
