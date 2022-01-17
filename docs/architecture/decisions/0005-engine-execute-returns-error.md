@@ -45,3 +45,5 @@ The error channel is real for the GoRules adapter (mid-2023): the underlying eng
 The in-memory adapter rarely has anything to fail on, but it returns `nil` errors consistently so callers writing engine-agnostic code can rely on the signature.
 
 A future ADR may introduce a separate "validation error" sentinel set (engine-agnostic) so callers can distinguish "this input was bad" from "the engine itself failed". For now the single `error` return is enough; specialisation arrives when the first non-trivial adapter needs it.
+
+> Note: the type named `Context` in this ADR was renamed to `Request` -- see [ADR-0006](0006-rename-context-to-request.md). The decision itself is unchanged; only the spelling.

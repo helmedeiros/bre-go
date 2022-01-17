@@ -49,3 +49,5 @@ Only after that do we evaluate concrete backends. When GoRules Zen ships, the ad
 The "no engine type on the public surface" rule is load-bearing. A future PR that adds a constructor returning `*gorules.Session` (instead of `engine.Engine`) breaks ADR-0001's promise and must be rejected, even if the diff looks small.
 
 The cost of the port is one indirection per call. Measured against the value of being able to evaluate engines without rewriting callers, it pays for itself many times over.
+
+> Note: the type named `Context` in this ADR was renamed to `Request` -- see [ADR-0006](0006-rename-context-to-request.md). The decision itself is unchanged; only the spelling.

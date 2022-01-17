@@ -37,3 +37,5 @@ The pre-1.18 codebase is honest about its rough edges. Each adapter writes one a
 When generics arrive, the `Executor` layer slots in as an additive feature -- no breaking change for callers already using `engine.Engine` directly. The Executor is the ergonomic surface; the port remains the load-bearing one. That separation is the point.
 
 The "no introspection helper" rule will get tested. The first time we want to log an `interface{}` value, someone will reach for reflect. The right answer is to push that responsibility outward to the adapter or the caller, not to add it to the public surface.
+
+> Note: the type named `Context` in this ADR was renamed to `Request` -- see [ADR-0006](0006-rename-context-to-request.md). The decision itself is unchanged; only the spelling.

@@ -17,3 +17,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 - [ADR-0003 The Engine Port](0003-engine-port.md)
 - [ADR-0004 Pre-Generics Input Handling](0004-pre-generics-input-handling.md)
 - [ADR-0005 engine.Engine.Execute Returns An Error](0005-engine-execute-returns-error.md)
+- [ADR-0006 Rename engine.Context To engine.Request](0006-rename-context-to-request.md)
