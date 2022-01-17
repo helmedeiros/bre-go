@@ -40,11 +40,12 @@ type Engine struct {
 	rules []Rule
 }
 
-// AddRule registers a rule. Returns an error if the rule's Name
-// is empty -- a nameless match would be invisible in Result.Matched.
+// AddRule registers a rule. Returns ErrEmptyRuleName if the rule's
+// Name is empty -- a nameless match would be invisible in
+// Result.Matched.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
-		return errEmptyRuleName
+		return ErrEmptyRuleName
 	}
 	e.rules = append(e.rules, r)
 	return nil
