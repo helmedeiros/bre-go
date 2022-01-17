@@ -20,6 +20,7 @@ Required tools (the [`Makefile`](Makefile) will tell you what is missing once it
 - Imperative, present-tense commit messages ("Add …", not "Added …").
 - Small, atomic commits. Each one must leave the quality gates (lint + vet + tests + coverage threshold) green.
 - The TDD discipline is: a failing-test commit followed by an implementation commit. Refactors are a separate commit.
+- Every contribution follows the [Clean Code conventions](docs/clean-code-conventions.md). Name conflicts with idiomatic Go go through the PR; the rule wins by default.
 
 ## Architecture decisions
 
