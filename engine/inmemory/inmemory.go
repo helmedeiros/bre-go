@@ -51,7 +51,7 @@ func (e *Engine) AddRule(r Rule) error {
 }
 
 // Execute satisfies engine.Engine. It evaluates each rule's
-// Condition against the Context.Input in insertion order. Every
+// Condition against the Request.Input in insertion order. Every
 // rule whose Condition returns true has its Name appended to
 // Result.Matched and its Action (if any) is invoked to set
 // Result.Output.
@@ -59,16 +59,16 @@ func (e *Engine) AddRule(r Rule) error {
 // The in-memory engine has no failure modes today, so the error
 // return is always nil. The signature exists so the port stays
 // uniform across adapters (see ADR-0005).
-func (e *Engine) Execute(ctx engine.Context) (engine.Result, error) {
+func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 	out := engine.Result{}
 	for _, r := range e.rules {
 		if r.Condition == nil {
 			continue
 		}
-		if r.Condition(ctx.Input) {
+		if r.Condition(req.Input) {
 			out.Matched = append(out.Matched, r.Name)
 			if r.Action != nil {
-				out.Output = r.Action(ctx.Input)
+				out.Output = r.Action(req.Input)
 			}
 		}
 	}

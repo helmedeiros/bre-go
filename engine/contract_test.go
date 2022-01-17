@@ -15,7 +15,7 @@ import (
 // alongside the first adapter.
 func TestEnginePortIsDefined(t *testing.T) {
 	var _ engine.Engine = nilEngine{}
-	_ = engine.Context{Input: "fact"}
+	_ = engine.Request{Input: "fact"}
 	_ = engine.Result{Output: "decision", Matched: []string{"rule-a"}}
 }
 
@@ -24,6 +24,6 @@ func TestEnginePortIsDefined(t *testing.T) {
 // adapter is engine/inmemory.
 type nilEngine struct{}
 
-func (nilEngine) Execute(engine.Context) (engine.Result, error) {
+func (nilEngine) Execute(engine.Request) (engine.Result, error) {
 	return engine.Result{}, nil
 }

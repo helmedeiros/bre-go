@@ -41,7 +41,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 
 	t.Run("empty engine produces empty result", func(t *testing.T) {
 		eng, _ := factory(t)
-		got, err := eng.Execute(engine.Context{Input: "anything"})
+		got, err := eng.Execute(engine.Request{Input: "anything"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -58,7 +58,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Context{Input: "x"})
+		got, err := eng.Execute(engine.Request{Input: "x"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -72,7 +72,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err := seed("never", func(interface{}) bool { return false }, nil); err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Context{Input: "x"})
+		got, err := eng.Execute(engine.Request{Input: "x"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -90,7 +90,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err != nil {
 			t.Skipf("adapter does not support action rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Context{Input: 42})
+		got, err := eng.Execute(engine.Request{Input: 42})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -111,14 +111,14 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		gotApple, errApple := eng.Execute(engine.Context{Input: "apple"})
+		gotApple, errApple := eng.Execute(engine.Request{Input: "apple"})
 		if errApple != nil {
 			t.Fatalf("Execute(apple): unexpected error: %v", errApple)
 		}
 		if len(gotApple.Matched) != 1 {
 			t.Fatalf("apple: want one match, got %v", gotApple.Matched)
 		}
-		gotBanana, errBanana := eng.Execute(engine.Context{Input: "banana"})
+		gotBanana, errBanana := eng.Execute(engine.Request{Input: "banana"})
 		if errBanana != nil {
 			t.Fatalf("Execute(banana): unexpected error: %v", errBanana)
 		}
