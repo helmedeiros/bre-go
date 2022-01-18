@@ -11,66 +11,94 @@ func TestNopLoggerSatisfiesLogger(t *testing.T) {
 	var _ observability.Logger = observability.NopLogger{}
 }
 
-func TestNopLoggerDoesNothing(t *testing.T) {
-	// The contract is that NopLogger's methods discard everything
-	// without panicking on any input shape. We do not have a way to
-	// assert "did nothing" beyond "did not panic" -- so cover the
-	// branches and let the deferred recover prove they returned.
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("NopLogger panicked: %v", r)
-		}
-	}()
+func TestNopLoggerInfoDoesNotPanic(t *testing.T) {
+	defer noPanic(t)
 
 	var l observability.Logger = observability.NopLogger{}
 	l.Info("hello")
+}
+
+func TestNopLoggerInfoWithFieldsDoesNotPanic(t *testing.T) {
+	defer noPanic(t)
+
+	var l observability.Logger = observability.NopLogger{}
 	l.Info("with fields",
 		observability.String("k", "v"),
 		observability.Int("n", 7),
 		observability.Bool("b", true),
 	)
+}
+
+func TestNopLoggerErrorDoesNotPanic(t *testing.T) {
+	defer noPanic(t)
+
+	var l observability.Logger = observability.NopLogger{}
 	l.Error("oh no", observability.Err(errors.New("boom")))
 }
 
-func TestFieldConstructorsSetExpectedShape(t *testing.T) {
-	cases := []struct {
-		name string
-		got  observability.Field
-		want observability.Field
-	}{
-		{
-			name: "string",
-			got:  observability.String("k", "v"),
-			want: observability.Field{Key: "k", Value: "v"},
-		},
-		{
-			name: "int",
-			got:  observability.Int("n", 7),
-			want: observability.Field{Key: "n", Value: 7},
-		},
-		{
-			name: "bool",
-			got:  observability.Bool("b", true),
-			want: observability.Field{Key: "b", Value: true},
-		},
+func TestStringFieldKey(t *testing.T) {
+	got := observability.String("k", "v")
+	if got.Key != "k" {
+		t.Errorf("Key: want %q, got %q", "k", got.Key)
 	}
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
-			if c.got != c.want {
-				t.Errorf("%s: want %#v, got %#v", c.name, c.want, c.got)
-			}
-		})
+}
+
+func TestStringFieldValue(t *testing.T) {
+	got := observability.String("k", "v")
+	if got.Value != "v" {
+		t.Errorf("Value: want %q, got %v", "v", got.Value)
+	}
+}
+
+func TestIntFieldKey(t *testing.T) {
+	got := observability.Int("n", 7)
+	if got.Key != "n" {
+		t.Errorf("Key: want %q, got %q", "n", got.Key)
+	}
+}
+
+func TestIntFieldValue(t *testing.T) {
+	got := observability.Int("n", 7)
+	if got.Value != 7 {
+		t.Errorf("Value: want 7, got %v", got.Value)
+	}
+}
+
+func TestBoolFieldKey(t *testing.T) {
+	got := observability.Bool("b", true)
+	if got.Key != "b" {
+		t.Errorf("Key: want %q, got %q", "b", got.Key)
+	}
+}
+
+func TestBoolFieldValue(t *testing.T) {
+	got := observability.Bool("b", true)
+	if got.Value != true {
+		t.Errorf("Value: want true, got %v", got.Value)
 	}
 }
 
 func TestErrFieldUsesFixedKey(t *testing.T) {
-	e := errors.New("nope")
-	got := observability.Err(e)
+	got := observability.Err(errors.New("nope"))
 	if got.Key != "err" {
 		t.Errorf("Key: want %q, got %q", "err", got.Key)
 	}
-	if got.Value != e {
-		t.Errorf("Value: want %v, got %v", e, got.Value)
+}
+
+func TestErrFieldCarriesTheError(t *testing.T) {
+	cause := errors.New("nope")
+	got := observability.Err(cause)
+	if got.Value != cause {
+		t.Errorf("Value: want %v, got %v", cause, got.Value)
+	}
+}
+
+// noPanic is a deferred guard the NopLogger panic-discipline tests
+// share. A test passes when its NopLogger call returns; the only
+// failure mode is a panic, which this helper turns into t.Fatalf.
+func noPanic(t *testing.T) {
+	t.Helper()
+	if r := recover(); r != nil {
+		t.Fatalf("unexpected panic: %v", r)
 	}
 }
