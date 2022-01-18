@@ -1,45 +1,33 @@
-// Package observability holds the small ports for the
-// cross-cutting concerns each rule engine adapter is expected to
-// emit -- structured logs first, metrics later.
-//
-// The interfaces are intentionally tiny so callers can adapt their
-// own logger (zerolog, zap, log/slog when 1.21 arrives) by writing
-// one shim type. The library never reaches for a logging framework.
+// Package observability holds the structured-logging port adapters
+// emit to.
 package observability
 
-// Logger receives structured log events from an engine adapter.
-// Implementations should be safe for concurrent use by multiple
-// goroutines.
-//
-// Fields are key/value pairs. By convention keys are lower-snake
-// case and values are concrete types (string, int, bool, error).
-// An adapter that does not want to log anything passes a NopLogger.
+// Logger receives structured log events. Implementations must be
+// safe for concurrent use.
 type Logger interface {
 	Info(msg string, fields ...Field)
 	Error(msg string, fields ...Field)
 }
 
-// Field is one key/value pair attached to a log line.
+// Field is a key/value pair attached to a log line.
 type Field struct {
 	Key   string
 	Value interface{}
 }
 
-// String constructs a string-typed Field.
+// String returns a string-typed Field.
 func String(key, value string) Field { return Field{Key: key, Value: value} }
 
-// Int constructs an int-typed Field.
+// Int returns an int-typed Field.
 func Int(key string, value int) Field { return Field{Key: key, Value: value} }
 
-// Bool constructs a bool-typed Field.
+// Bool returns a bool-typed Field.
 func Bool(key string, value bool) Field { return Field{Key: key, Value: value} }
 
-// Err constructs an error-typed Field. The key is fixed to "err"
-// so structured-log consumers can index it consistently.
+// Err returns an error-typed Field with the fixed key "err".
 func Err(value error) Field { return Field{Key: "err", Value: value} }
 
-// NopLogger is the default Logger used when none is supplied. It
-// discards every message; safe for concurrent use.
+// NopLogger discards every message.
 type NopLogger struct{}
 
 // Info on a NopLogger discards the message.

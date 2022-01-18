@@ -93,9 +93,6 @@ func TestErrFieldCarriesTheError(t *testing.T) {
 	}
 }
 
-// noPanic is a deferred guard the NopLogger panic-discipline tests
-// share. A test passes when its NopLogger call returns; the only
-// failure mode is a panic, which this helper turns into t.Fatalf.
 func noPanic(t *testing.T) {
 	t.Helper()
 	if r := recover(); r != nil {

@@ -218,17 +218,11 @@ func TestExecuteRecordsEveryMatchingRule(t *testing.T) {
 	}
 }
 
-// startsWithA is the shared condition used by the input-driven
-// match/skip pair. Lifted up here so each test reads as a single
-// assertion against the same Condition shape.
 func startsWithA(in interface{}) bool {
 	s, ok := in.(string)
 	return ok && len(s) > 0 && s[0] == 'a'
 }
 
-// newEngineWithRule and execute are tiny helpers that remove the
-// repeated New/AddRule/Execute/err-check boilerplate so each test
-// reads as a one-line action followed by one assertion.
 func newEngineWithRule(t *testing.T, r inmemory.Rule) *inmemory.Engine {
 	t.Helper()
 	e := inmemory.New()

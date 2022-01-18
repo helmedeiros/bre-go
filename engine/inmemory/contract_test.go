@@ -8,9 +8,6 @@ import (
 	"github.com/helmedeiros/bre-go/engine/inmemory"
 )
 
-// TestContract runs the shared engine.Engine contract test suite
-// against this adapter. New behavioral guarantees are added in
-// enginetest, not here; this file is the wiring.
 func TestContract(t *testing.T) {
 	enginetest.RunContractTests(t, func(t *testing.T) (engine.Engine, enginetest.SeedFunc) {
 		t.Helper()

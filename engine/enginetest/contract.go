@@ -1,11 +1,5 @@
-// Package enginetest holds the shared engine.Engine contract test
-// suite. Every adapter is expected to wire RunContractTests into
-// its own *_test.go and pass against the same set of behavioral
-// guarantees.
-//
-// The package depends only on the engine port. It is not a
-// production dependency; adapters import it from a _test.go file
-// so the binaries the library produces never carry it.
+// Package enginetest is the shared engine.Engine contract suite.
+// Adapters call RunContractTests from their own *_test.go.
 package enginetest
 
 import (
@@ -14,28 +8,14 @@ import (
 	"github.com/helmedeiros/bre-go/engine"
 )
 
-// Factory builds a fresh engine.Engine for a single test. It
-// receives a *testing.T so the factory can install temporary
-// fixtures or call t.Cleanup. The returned engine should be empty
-// of rules; the test below populates rules when needed via the
-// optional second return (a SeedFunc).
+// Factory builds a fresh empty engine and a SeedFunc.
 type Factory func(t *testing.T) (engine.Engine, SeedFunc)
 
-// SeedFunc registers a named rule on the engine returned by the
-// Factory. The contract tests use it to populate engines without
-// knowing the adapter's specific Rule type.
-//
-// Returning an error lets the adapter signal "this rule shape is
-// not supported"; the contract test then skips the affected case
-// rather than failing.
+// SeedFunc registers a named rule. Returning an error skips the
+// affected case (adapter does not support that rule shape).
 type SeedFunc func(name string, match func(input interface{}) bool, action func(input interface{}) interface{}) error
 
-// RunContractTests executes the suite against the provided
-// factory. Adapters call it from a single test function like:
-//
-//	func TestContract(t *testing.T) {
-//	  enginetest.RunContractTests(t, factory)
-//	}
+// RunContractTests runs the suite against factory.
 func RunContractTests(t *testing.T, factory Factory) {
 	t.Helper()
 
