@@ -12,16 +12,24 @@ func TestNewReturnsAnEngine(t *testing.T) {
 	var _ engine.Engine = inmemory.New()
 }
 
-func TestEmptyEngineProducesEmptyResult(t *testing.T) {
+func TestEmptyEngineProducesNoOutput(t *testing.T) {
 	e := inmemory.New()
 
 	got, err := e.Execute(engine.Request{Input: "anything"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
-
 	if got.Output != nil {
 		t.Errorf("Output: want nil, got %v", got.Output)
+	}
+}
+
+func TestEmptyEngineMatchesNothing(t *testing.T) {
+	e := inmemory.New()
+
+	got, err := e.Execute(engine.Request{Input: "anything"})
+	if err != nil {
+		t.Fatalf("Execute: unexpected error: %v", err)
 	}
 	if len(got.Matched) != 0 {
 		t.Errorf("Matched: want empty, got %v", got.Matched)
@@ -51,24 +59,42 @@ func TestAddRuleRejectsEmptyName(t *testing.T) {
 	}
 }
 
-func TestExecuteMatchesRulesWhoseConditionIsTrue(t *testing.T) {
-	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{
+func TestExecuteMatchesARuleWhoseConditionIsTrue(t *testing.T) {
+	e := newEngineWithRule(t, inmemory.Rule{
 		Name:      "always",
 		Condition: func(interface{}) bool { return true },
 	})
-	_ = e.AddRule(inmemory.Rule{
+
+	got := execute(t, e, "x")
+
+	if len(got.Matched) == 0 {
+		t.Fatalf("Matched: want at least one entry, got %v", got.Matched)
+	}
+}
+
+func TestExecuteSkipsARuleWhoseConditionIsFalse(t *testing.T) {
+	e := newEngineWithRule(t, inmemory.Rule{
 		Name:      "never",
 		Condition: func(interface{}) bool { return false },
 	})
 
-	got, err := e.Execute(engine.Request{Input: "x"})
-	if err != nil {
-		t.Fatalf("Execute: unexpected error: %v", err)
-	}
+	got := execute(t, e, "x")
 
-	if len(got.Matched) != 1 || got.Matched[0] != "always" {
-		t.Fatalf("Matched: want [always], got %v", got.Matched)
+	if len(got.Matched) != 0 {
+		t.Fatalf("Matched: want empty, got %v", got.Matched)
+	}
+}
+
+func TestExecuteUsesTheRuleName(t *testing.T) {
+	e := newEngineWithRule(t, inmemory.Rule{
+		Name:      "the-one",
+		Condition: func(interface{}) bool { return true },
+	})
+
+	got := execute(t, e, "x")
+
+	if got.Matched[0] != "the-one" {
+		t.Fatalf("Matched[0]: want %q, got %q", "the-one", got.Matched[0])
 	}
 }
 
@@ -81,15 +107,9 @@ func TestExecutePreservesInsertionOrder(t *testing.T) {
 		})
 	}
 
-	got, err := e.Execute(engine.Request{Input: "x"})
-	if err != nil {
-		t.Fatalf("Execute: unexpected error: %v", err)
-	}
+	got := execute(t, e, "x")
 
 	want := []string{"first", "second", "third"}
-	if len(got.Matched) != len(want) {
-		t.Fatalf("Matched: want %v, got %v", want, got.Matched)
-	}
 	for i, n := range want {
 		if got.Matched[i] != n {
 			t.Errorf("Matched[%d]: want %q, got %q", i, n, got.Matched[i])
@@ -97,45 +117,36 @@ func TestExecutePreservesInsertionOrder(t *testing.T) {
 	}
 }
 
-func TestExecuteUsesInputForConditionDecision(t *testing.T) {
-	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{
-		Name: "starts-with-a",
-		Condition: func(in interface{}) bool {
-			s, ok := in.(string)
-			return ok && len(s) > 0 && s[0] == 'a'
-		},
+func TestExecuteMatchesWhenInputSatisfiesCondition(t *testing.T) {
+	e := newEngineWithRule(t, inmemory.Rule{
+		Name:      "starts-with-a",
+		Condition: startsWithA,
 	})
 
-	t.Run("matches when input starts with a", func(t *testing.T) {
-		got, err := e.Execute(engine.Request{Input: "apple"})
-		if err != nil {
-			t.Fatalf("Execute: unexpected error: %v", err)
-		}
-		if len(got.Matched) != 1 {
-			t.Fatalf("Matched: want one match, got %v", got.Matched)
-		}
+	got := execute(t, e, "apple")
+
+	if len(got.Matched) != 1 {
+		t.Fatalf("Matched: want one entry, got %v", got.Matched)
+	}
+}
+
+func TestExecuteSkipsWhenInputDoesNotSatisfyCondition(t *testing.T) {
+	e := newEngineWithRule(t, inmemory.Rule{
+		Name:      "starts-with-a",
+		Condition: startsWithA,
 	})
 
-	t.Run("does not match when input does not", func(t *testing.T) {
-		got, err := e.Execute(engine.Request{Input: "banana"})
-		if err != nil {
-			t.Fatalf("Execute: unexpected error: %v", err)
-		}
-		if len(got.Matched) != 0 {
-			t.Fatalf("Matched: want empty, got %v", got.Matched)
-		}
-	})
+	got := execute(t, e, "banana")
+
+	if len(got.Matched) != 0 {
+		t.Fatalf("Matched: want empty, got %v", got.Matched)
+	}
 }
 
 func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
-	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{Name: "no-condition"})
+	e := newEngineWithRule(t, inmemory.Rule{Name: "no-condition"})
 
-	got, err := e.Execute(engine.Request{Input: "x"})
-	if err != nil {
-		t.Fatalf("Execute: unexpected error: %v", err)
-	}
+	got := execute(t, e, "x")
 
 	if len(got.Matched) != 0 {
 		t.Fatalf("Matched: want empty, got %v", got.Matched)
@@ -143,17 +154,13 @@ func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
 }
 
 func TestExecuteRunsActionOfMatchingRule(t *testing.T) {
-	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{
+	e := newEngineWithRule(t, inmemory.Rule{
 		Name:      "doubler",
 		Condition: func(interface{}) bool { return true },
 		Action:    func(in interface{}) interface{} { return in.(int) * 2 },
 	})
 
-	got, err := e.Execute(engine.Request{Input: 21})
-	if err != nil {
-		t.Fatalf("Execute: unexpected error: %v", err)
-	}
+	got := execute(t, e, 21)
 
 	if got.Output != 42 {
 		t.Fatalf("Output: want 42, got %v", got.Output)
@@ -161,8 +168,7 @@ func TestExecuteRunsActionOfMatchingRule(t *testing.T) {
 }
 
 func TestExecuteDoesNotRunActionOfUnmatchedRule(t *testing.T) {
-	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{
+	e := newEngineWithRule(t, inmemory.Rule{
 		Name:      "guarded",
 		Condition: func(interface{}) bool { return false },
 		Action: func(interface{}) interface{} {
@@ -171,17 +177,10 @@ func TestExecuteDoesNotRunActionOfUnmatchedRule(t *testing.T) {
 		},
 	})
 
-	got, err := e.Execute(engine.Request{Input: 1})
-	if err != nil {
-		t.Fatalf("Execute: unexpected error: %v", err)
-	}
-
-	if got.Output != nil {
-		t.Fatalf("Output: want nil, got %v", got.Output)
-	}
+	_ = execute(t, e, 1)
 }
 
-func TestExecuteLaterMatchingActionWinsOnOutput(t *testing.T) {
+func TestExecuteLastMatchingActionWinsOnOutput(t *testing.T) {
 	e := inmemory.New()
 	_ = e.AddRule(inmemory.Rule{
 		Name:      "first",
@@ -194,15 +193,56 @@ func TestExecuteLaterMatchingActionWinsOnOutput(t *testing.T) {
 		Action:    func(interface{}) interface{} { return "second" },
 	})
 
-	got, err := e.Execute(engine.Request{Input: "x"})
+	got := execute(t, e, "x")
+
+	if got.Output != "second" {
+		t.Fatalf("Output: want %q, got %v", "second", got.Output)
+	}
+}
+
+func TestExecuteRecordsEveryMatchingRule(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "first",
+		Condition: func(interface{}) bool { return true },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "second",
+		Condition: func(interface{}) bool { return true },
+	})
+
+	got := execute(t, e, "x")
+
+	if len(got.Matched) != 2 {
+		t.Fatalf("Matched: want two entries, got %v", got.Matched)
+	}
+}
+
+// startsWithA is the shared condition used by the input-driven
+// match/skip pair. Lifted up here so each test reads as a single
+// assertion against the same Condition shape.
+func startsWithA(in interface{}) bool {
+	s, ok := in.(string)
+	return ok && len(s) > 0 && s[0] == 'a'
+}
+
+// newEngineWithRule and execute are tiny helpers that remove the
+// repeated New/AddRule/Execute/err-check boilerplate so each test
+// reads as a one-line action followed by one assertion.
+func newEngineWithRule(t *testing.T, r inmemory.Rule) *inmemory.Engine {
+	t.Helper()
+	e := inmemory.New()
+	if err := e.AddRule(r); err != nil {
+		t.Fatalf("AddRule: unexpected error: %v", err)
+	}
+	return e
+}
+
+func execute(t *testing.T, e *inmemory.Engine, input interface{}) engine.Result {
+	t.Helper()
+	got, err := e.Execute(engine.Request{Input: input})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
-
-	if got.Output != "second" {
-		t.Fatalf("Output: want \"second\", got %v", got.Output)
-	}
-	if len(got.Matched) != 2 {
-		t.Fatalf("Matched: want both, got %v", got.Matched)
-	}
+	return got
 }
