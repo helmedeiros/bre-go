@@ -1,7 +1,10 @@
 // Package inmemory is a tiny engine.Engine for tests and examples.
 package inmemory
 
-import "github.com/helmedeiros/bre-go/engine"
+import (
+	"github.com/helmedeiros/bre-go/engine"
+	"github.com/helmedeiros/bre-go/observability"
+)
 
 // Rule is a named condition with an optional action.
 type Rule struct {
@@ -17,7 +20,8 @@ func New() *Engine {
 
 // Engine evaluates rules in insertion order.
 type Engine struct {
-	rules []Rule
+	rules     []Rule
+	listeners []observability.ExecutionListener
 }
 
 // AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty.
@@ -27,6 +31,11 @@ func (e *Engine) AddRule(r Rule) error {
 	}
 	e.rules = append(e.rules, r)
 	return nil
+}
+
+// AddListener registers l for OnRuleMatched events.
+func (e *Engine) AddListener(l observability.ExecutionListener) {
+	e.listeners = append(e.listeners, l)
 }
 
 // Execute walks every rule and returns the result. Later matching
@@ -41,6 +50,14 @@ func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 		if r.Action != nil {
 			out.Output = r.Action(req.Input)
 		}
+		e.notify(r.Name, req.Input, out.Output)
 	}
 	return out, nil
+}
+
+func (e *Engine) notify(rule string, input, output interface{}) {
+	m := observability.Match{Rule: rule, Input: input, Output: output}
+	for _, l := range e.listeners {
+		l.OnRuleMatched(m)
+	}
 }
