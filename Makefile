@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  test        - run go test with the race detector"
 	@echo "  cover       - run tests with coverage and enforce \$$COVER_MIN ($(COVER_MIN)%)"
 	@echo "  cover-html  - open the per-line HTML coverage report"
+	@echo "  bench       - run benchmarks across all packages"
 	@echo "  all         - lint + vet + test + cover"
 	@echo "  ci-local    - the same checks CI runs, in the same order"
 	@echo "  clean       - remove generated coverage artifacts"
@@ -72,6 +73,13 @@ endif
 
 cover-html: cover
 	$(GO) tool cover -html=$(COVER_OUT)
+
+bench:
+ifneq ($(HAS_GO),)
+	$(GO) test -run=^$$ -bench=. -benchmem $(PKG)
+else
+	@echo "no go files to benchmark -- skipping"
+endif
 
 all: lint vet test cover
 
