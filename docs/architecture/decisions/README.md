@@ -19,3 +19,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 - [ADR-0005 engine.Engine.Execute Returns An Error](0005-engine-execute-returns-error.md)
 - [ADR-0006 Rename engine.Context To engine.Request](0006-rename-context-to-request.md)
 - [ADR-0007 Execution Listener As An Observer Port](0007-execution-listener.md)
+- [ADR-0008 Built-In Listener Implementations](0008-built-in-listeners.md)
