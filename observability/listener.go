@@ -45,3 +45,21 @@ func (c *CountingListener) Total() int {
 	}
 	return sum
 }
+
+// LoggingListener bridges ExecutionListener events to a Logger. It logs
+// the rule name only; Input and Output payloads are deliberately left
+// off the log line so callers do not accidentally leak PII.
+type LoggingListener struct {
+	logger Logger
+}
+
+// NewLoggingListener returns a listener that calls Info on logger for
+// every rule match.
+func NewLoggingListener(logger Logger) *LoggingListener {
+	return &LoggingListener{logger: logger}
+}
+
+// OnRuleMatched logs the rule name through the wrapped Logger.
+func (l *LoggingListener) OnRuleMatched(m Match) {
+	l.logger.Info("rule matched", String("rule", m.Rule))
+}
