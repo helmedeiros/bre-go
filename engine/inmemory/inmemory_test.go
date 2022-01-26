@@ -59,6 +59,35 @@ func TestAddRuleRejectsEmptyName(t *testing.T) {
 	}
 }
 
+func TestAddRuleRejectsDuplicateName(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{Name: "alpha"})
+
+	err := e.AddRule(inmemory.Rule{Name: "alpha"})
+
+	if !errors.Is(err, inmemory.ErrDuplicateRuleName) {
+		t.Fatalf("AddRule: want ErrDuplicateRuleName, got %v", err)
+	}
+}
+
+func TestAddRuleDoesNotStoreDuplicate(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "alpha",
+		Condition: func(interface{}) bool { return true },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "alpha",
+		Condition: func(interface{}) bool { return true },
+	})
+
+	got := execute(t, e, "x")
+
+	if len(got.Matched) != 1 {
+		t.Fatalf("Matched: want 1 entry, got %d", len(got.Matched))
+	}
+}
+
 func TestExecuteMatchesARuleWhoseConditionIsTrue(t *testing.T) {
 	e := newEngineWithRule(t, inmemory.Rule{
 		Name:      "always",

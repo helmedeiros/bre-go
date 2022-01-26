@@ -24,10 +24,16 @@ type Engine struct {
 	listeners []observability.ExecutionListener
 }
 
-// AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty.
+// AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty
+// or ErrDuplicateRuleName when r.Name is already registered.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
+	}
+	for _, existing := range e.rules {
+		if existing.Name == r.Name {
+			return ErrDuplicateRuleName
+		}
 	}
 	e.rules = append(e.rules, r)
 	return nil

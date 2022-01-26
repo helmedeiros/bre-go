@@ -79,6 +79,16 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 	})
 
+	t.Run("seed rejects a duplicate rule name", func(t *testing.T) {
+		_, seed := factory(t)
+		if err := seed("dup", func(interface{}) bool { return true }, nil); err != nil {
+			t.Skipf("adapter does not support condition-only rules: %v", err)
+		}
+		if err := seed("dup", func(interface{}) bool { return true }, nil); err == nil {
+			t.Fatalf("second seed of the same name: want error, got nil")
+		}
+	})
+
 	t.Run("condition can read the input", func(t *testing.T) {
 		eng, seed := factory(t)
 		err := seed("starts-with-a",
