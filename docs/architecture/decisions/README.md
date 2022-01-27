@@ -21,3 +21,4 @@ A decision is "Accepted" when its implementation is on `main`. Older decisions c
 - [ADR-0007 Execution Listener As An Observer Port](0007-execution-listener.md)
 - [ADR-0008 Built-In Listener Implementations](0008-built-in-listeners.md)
 - [ADR-0009 Reject Duplicate Rule Names On AddRule](0009-reject-duplicate-rule-names.md)
+- [ADR-0010 ListenerHost As An Optional Interface](0010-listener-host-optional-interface.md)
