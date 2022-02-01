@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html bench all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench check-adrs all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -16,7 +16,8 @@ help:
 	@echo "  cover       - run tests with coverage and enforce \$$COVER_MIN ($(COVER_MIN)%)"
 	@echo "  cover-html  - open the per-line HTML coverage report"
 	@echo "  bench       - run benchmarks across all packages"
-	@echo "  all         - lint + vet + test + cover"
+	@echo "  check-adrs  - verify the ADR README index matches the folder"
+	@echo "  all         - lint + vet + test + cover + check-adrs"
 	@echo "  ci-local    - the same checks CI runs, in the same order"
 	@echo "  clean       - remove generated coverage artifacts"
 
@@ -81,7 +82,10 @@ else
 	@echo "no go files to benchmark -- skipping"
 endif
 
-all: lint vet test cover
+check-adrs:
+	@bash scripts/check-adrs.sh
+
+all: lint vet test cover check-adrs
 
 ci-local: all
 
