@@ -37,3 +37,4 @@ Status markers: ✅ Accepted · ⏳ Accepted (provisional) · ♻️ Superseded 
 | [0009](0009-reject-duplicate-rule-names.md) | Reject Duplicate Rule Names On AddRule | ✅ Accepted |
 | [0010](0010-listener-host-optional-interface.md) | ListenerHost As An Optional Interface | ✅ Accepted |
 | [0011](0011-adr-lifecycle-and-supersession.md) | ADR Lifecycle And Supersession Convention | ✅ Accepted |
+| [0012](0012-reject-rules-with-nil-condition.md) | Reject Rules With A Nil Condition | ✅ Accepted |
