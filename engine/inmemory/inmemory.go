@@ -24,11 +24,16 @@ type Engine struct {
 	listeners []observability.ExecutionListener
 }
 
-// AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty
-// or ErrDuplicateRuleName when r.Name is already registered.
+// AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty,
+// ErrNilCondition when r.Condition is nil, or ErrDuplicateRuleName when
+// r.Name is already registered. Checks run shape-first (per-rule
+// invariants) then engine-state-second (uniqueness).
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
+	}
+	if r.Condition == nil {
+		return ErrNilCondition
 	}
 	for _, existing := range e.rules {
 		if existing.Name == r.Name {

@@ -61,9 +61,15 @@ func TestAddRuleRejectsEmptyName(t *testing.T) {
 
 func TestAddRuleRejectsDuplicateName(t *testing.T) {
 	e := inmemory.New()
-	_ = e.AddRule(inmemory.Rule{Name: "alpha"})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "alpha",
+		Condition: func(interface{}) bool { return true },
+	})
 
-	err := e.AddRule(inmemory.Rule{Name: "alpha"})
+	err := e.AddRule(inmemory.Rule{
+		Name:      "alpha",
+		Condition: func(interface{}) bool { return true },
+	})
 
 	if !errors.Is(err, inmemory.ErrDuplicateRuleName) {
 		t.Fatalf("AddRule: want ErrDuplicateRuleName, got %v", err)
@@ -172,13 +178,13 @@ func TestExecuteSkipsWhenInputDoesNotSatisfyCondition(t *testing.T) {
 	}
 }
 
-func TestExecuteSkipsRulesWithNilCondition(t *testing.T) {
-	e := newEngineWithRule(t, inmemory.Rule{Name: "no-condition"})
+func TestAddRuleRejectsNilCondition(t *testing.T) {
+	e := inmemory.New()
 
-	got := execute(t, e, "x")
+	err := e.AddRule(inmemory.Rule{Name: "no-condition"})
 
-	if len(got.Matched) != 0 {
-		t.Fatalf("Matched: want empty, got %v", got.Matched)
+	if !errors.Is(err, inmemory.ErrNilCondition) {
+		t.Fatalf("AddRule: want ErrNilCondition, got %v", err)
 	}
 }
 
