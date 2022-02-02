@@ -26,7 +26,15 @@ So the conservative move is: reject `nil` `Condition` at registration. If the un
 
 ## Decision
 
-Add `ErrNilCondition` next to `ErrEmptyRuleName` and `ErrDuplicateRuleName` in `engine/inmemory/errors.go`. In `AddRule`, after the empty-name and duplicate-name checks, return `ErrNilCondition` if `r.Condition == nil`. The `engine.Engine` port is unchanged -- this is purely an `inmemory` adapter invariant.
+Add `ErrNilCondition` next to `ErrEmptyRuleName` and `ErrDuplicateRuleName` in `engine/inmemory/errors.go`. `AddRule` runs the checks in **shape-first, state-second** order:
+
+1. `Name == ""` → `ErrEmptyRuleName`
+2. `Condition == nil` → `ErrNilCondition`
+3. duplicate name in existing rules → `ErrDuplicateRuleName`
+
+Shape-first means: invariants the *rule alone* must satisfy (a name, a condition) are checked before invariants that depend on the *engine state* (uniqueness). The visible benefit is that error returns are deterministic regardless of registration order. Calling `AddRule` twice with the same malformed rule returns the same error both times, instead of the first call complaining about shape and the second about a duplicate of an in-fact-never-stored rule.
+
+The `engine.Engine` port is unchanged -- this is purely an `inmemory` adapter invariant.
 
 The contract test suite stays silent on this. Other adapters (gorules, file-loaded) might represent "always fires" natively and not need a `Condition` callback at all, so the suite cannot assume a `nil` callback is rejection-worthy.
 
