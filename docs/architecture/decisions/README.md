@@ -22,7 +22,7 @@ When a new ADR replaces an old one, update the old ADR's `## Status` line to `Su
 
 ## Index
 
-Status markers: ✅ Accepted · ⏳ Accepted (provisional) · ♻️ Superseded · ⊘ Deprecated
+Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · ♻️ Superseded · ⊘ Deprecated
 
 | ADR | Title | Status |
 |-----|-------|--------|
@@ -38,3 +38,4 @@ Status markers: ✅ Accepted · ⏳ Accepted (provisional) · ♻️ Superseded 
 | [0010](0010-listener-host-optional-interface.md) | ListenerHost As An Optional Interface | ✅ Accepted |
 | [0011](0011-adr-lifecycle-and-supersession.md) | ADR Lifecycle And Supersession Convention | ✅ Accepted |
 | [0012](0012-reject-rules-with-nil-condition.md) | Reject Rules With A Nil Condition | ✅ Accepted |
+| [0013](0013-generic-executor-layer.md) | Generic Executor Layer Over engine.Engine | 📝 Proposed (pending Go 1.18 GA) |
