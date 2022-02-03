@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Verify every ADR file in docs/architecture/decisions/ is indexed in
-# README.md, and every linked file in README.md exists.
+# Verify ADR hygiene:
+#   1. Every ADR file is indexed in README.md.
+#   2. Every README.md link points at a file that exists.
+#   3. Every ADR file has a Status line under "## Status" with one of
+#      the five allowed values from ADR-0011.
 set -euo pipefail
 
 ADR_DIR="docs/architecture/decisions"
@@ -19,6 +22,21 @@ for f in "$ADR_DIR"/0*.md; do
     echo "ADR file not indexed in README.md: $base" >&2
     fail=1
   fi
+
+  status="$(awk '/^## Status$/{flag=1; next} flag && NF{print; exit}' "$f")"
+  if [ -z "$status" ]; then
+    echo "ADR has no Status line: $base" >&2
+    fail=1
+    continue
+  fi
+  case "$status" in
+    "Proposed"*|"Accepted"|"Accepted "*|"Superseded by ADR-"*|"Deprecated") ;;
+    *)
+      echo "ADR $base has unknown status: \"$status\"" >&2
+      echo "  allowed: Proposed | Accepted | Accepted (...) | Superseded by ADR-NNNN | Deprecated" >&2
+      fail=1
+      ;;
+  esac
 done
 
 while IFS= read -r linked; do
@@ -33,4 +51,4 @@ if [ "$fail" -ne 0 ]; then
 fi
 
 count=$(find "$ADR_DIR" -maxdepth 1 -name '0*.md' | wc -l | tr -d ' ')
-echo "ADR index in sync ($count ADRs)"
+echo "ADR index in sync ($count ADRs, all with valid status)"
