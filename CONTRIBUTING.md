@@ -28,14 +28,19 @@ Significant design choices are captured as Architecture Decision Records under [
 
 ## Adding a new engine adapter
 
-The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing callers depend on. Every adapter must:
+The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing callers depend on. The repo ships two adapters today -- [`engine/inmemory`](engine/inmemory) (all-match, last-action-wins) and [`engine/firstmatch`](engine/firstmatch) (first-match) -- both produced by the same four-step recipe:
 
-1. Live in its own sub-package under `engine/`.
-2. Expose a `New(...)` constructor that returns either `*Engine` (an adapter-specific type implementing `engine.Engine`) or the interface directly.
-3. **Never** expose adapter-specific types (rule structs, sessions, fact handles) outside the package boundary.
-4. Wire `enginetest.RunContractTests` from a `*_test.go` file with a Factory that builds a fresh engine + a SeedFunc that registers rules in the adapter's native shape. The contract suite drives the same behavioral assertions every adapter must satisfy.
+1. **Live in your own sub-package under `engine/`.** Pick a name that describes the *policy*, not the implementation (`inmemory` was the wrong precedent here; `firstmatch` is the right one. Names like `decisiontable` or `priorityqueue` would also be good).
+2. **Expose a `New(...) *Engine` constructor and an adapter-local `Rule` type.** The `Rule` type lives in the adapter package, not in `engine/`. The port stays minimal (see ADR-0014's rationale).
+3. **Validate at registration time, not at execution time.** Empty name, nil condition, duplicate name -- return distinct sentinels callers can branch on with `errors.Is`. The check order is shape-first (per-rule invariants) then state-second (uniqueness), so error returns stay deterministic regardless of registration order. See ADR-0009, ADR-0012.
+4. **Wire `enginetest.RunContractTests`** from a `*_test.go` file with a Factory that builds a fresh engine + a SeedFunc that registers rules in the adapter's native shape. The contract suite drives the port-level behavioral assertions every adapter must satisfy.
 
-See `engine/inmemory/contract_test.go` for the wiring template.
+**Optional but recommended:**
+
+- **Satisfy `engine.ListenerHost`** if your adapter can fire per-rule events. The two existing adapters both do; the `observability.CountingListener` and `LoggingListener` plug in automatically. A compile-time witness (`var _ engine.ListenerHost = (*Engine)(nil)`) catches signature drift.
+- **Add a runnable example** in `example_test.go` showing the adapter's headline use case. Compile-checked godoc beats prose every time.
+
+See `engine/inmemory/contract_test.go` and `engine/firstmatch/contract_test.go` for the wiring template -- both files are deliberately near-identical.
 
 ## Reporting issues
 
