@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
+	"github.com/helmedeiros/bre-go/observability"
 )
 
 // Factory builds a fresh empty engine and a SeedFunc.
@@ -114,6 +115,25 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 		if len(gotBanana.Matched) != 0 {
 			t.Fatalf("banana: want no matches, got %v", gotBanana.Matched)
+		}
+	})
+
+	t.Run("if ListenerHost is satisfied, OnRuleMatched fires for matches", func(t *testing.T) {
+		eng, seed := factory(t)
+		host, ok := eng.(engine.ListenerHost)
+		if !ok {
+			t.Skip("adapter does not satisfy engine.ListenerHost")
+		}
+		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
+			t.Skipf("adapter does not support condition-only rules: %v", err)
+		}
+		counter := &observability.CountingListener{}
+		host.AddListener(counter)
+		if _, err := eng.Execute(engine.Request{Input: "x"}); err != nil {
+			t.Fatalf("Execute: unexpected error: %v", err)
+		}
+		if counter.Total() == 0 {
+			t.Fatalf("counter.Total: want > 0 after a match, got 0")
 		}
 	})
 }
