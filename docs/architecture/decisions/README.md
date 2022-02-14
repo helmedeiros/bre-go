@@ -40,3 +40,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0012](0012-reject-rules-with-nil-condition.md) | Reject Rules With A Nil Condition | ✅ Accepted |
 | [0013](0013-generic-executor-layer.md) | Generic Executor Layer Over engine.Engine | 📝 Proposed (pending Go 1.18 GA) |
 | [0014](0014-firstmatch-adapter.md) | A First-Match Adapter Alongside Inmemory | ✅ Accepted |
+| [0015](0015-boolean-condition-combinators.md) | Boolean Condition Combinators | ✅ Accepted |
