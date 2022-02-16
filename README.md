@@ -8,6 +8,50 @@ The public API is backend-agnostic. Today it ships with two small in-process eng
 
 Early. The architecture is being built first, the engine implementations follow. See [`docs/architecture/decisions/`](docs/architecture/decisions/) for the design record.
 
+## Quickstart
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/helmedeiros/bre-go/engine"
+	"github.com/helmedeiros/bre-go/engine/conditions"
+	"github.com/helmedeiros/bre-go/engine/inmemory"
+	"github.com/helmedeiros/bre-go/observability"
+)
+
+type order struct {
+	amount   int
+	currency string
+	flagged  bool
+}
+
+func main() {
+	e := inmemory.New()
+	counter := &observability.CountingListener{}
+	e.AddListener(counter)
+
+	_ = e.AddRule(inmemory.Rule{
+		Name: "high-value-clean-usd",
+		Condition: conditions.And(
+			func(in interface{}) bool { return in.(order).amount > 100 },
+			func(in interface{}) bool { return in.(order).currency == "USD" },
+			conditions.Not(func(in interface{}) bool { return in.(order).flagged }),
+		),
+		Action: func(interface{}) interface{} { return "approve" },
+	})
+
+	res, _ := e.Execute(engine.Request{
+		Input: order{amount: 250, currency: "USD"},
+	})
+
+	fmt.Println(res.Matched, res.Output, counter.Total())
+	// Output: [high-value-clean-usd] approve 1
+}
+```
+
 ## Which adapter do I want?
 
 | Adapter | Semantics | Pick it when |
