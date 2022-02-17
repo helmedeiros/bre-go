@@ -5,6 +5,7 @@ import (
 
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/engine/conditions"
+	"github.com/helmedeiros/bre-go/engine/firstmatch"
 	"github.com/helmedeiros/bre-go/engine/inmemory"
 )
 
@@ -59,4 +60,23 @@ func ExampleOr() {
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [any-major-currency] supported
+}
+
+func ExampleAlways() {
+	e := firstmatch.New()
+	_ = e.AddRule(firstmatch.Rule{
+		Name:      "premium",
+		Condition: amountOver(1000),
+		Action:    func(interface{}) interface{} { return "premium-tier" },
+	})
+	_ = e.AddRule(firstmatch.Rule{
+		Name:      "default",
+		Condition: conditions.Always(),
+		Action:    func(interface{}) interface{} { return "default-tier" },
+	})
+
+	res, _ := e.Execute(engine.Request{Input: order{amount: 50}})
+
+	fmt.Println(res.Matched, res.Output)
+	// Output: [default] default-tier
 }
