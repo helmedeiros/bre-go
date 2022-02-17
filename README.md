@@ -63,6 +63,16 @@ Both adapters share the same `Rule` shape (`Name`, `Condition`, `Action`), the s
 
 The same `enginetest.RunContractTests` suite runs against both -- port-level behavior is identical, only the multi-rule policy differs.
 
+## Toolkit
+
+| Package | What it gives you |
+|---------|-------------------|
+| [`engine`](engine) | The `Engine` port, `Request`/`Result` value types, the `ListenerHost` optional capability interface. |
+| [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch) | Two concrete adapters with different multi-rule policies. |
+| [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
+| [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
+| [`observability`](observability) | `Logger` and `ExecutionListener` ports plus the four built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`. |
+
 ## License
 
 [MIT](LICENSE).
