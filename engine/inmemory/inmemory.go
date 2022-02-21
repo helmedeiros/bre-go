@@ -49,6 +49,16 @@ func (e *Engine) AddListener(l observability.ExecutionListener) {
 	e.listeners = append(e.listeners, l)
 }
 
+// RuleNames returns the names of every registered rule in insertion
+// order. The returned slice is a fresh copy and safe to modify.
+func (e *Engine) RuleNames() []string {
+	names := make([]string, len(e.rules))
+	for i, r := range e.rules {
+		names[i] = r.Name
+	}
+	return names
+}
+
 // Execute walks every rule and returns the result. Later matching
 // actions overwrite earlier outputs.
 func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
