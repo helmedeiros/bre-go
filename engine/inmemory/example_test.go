@@ -39,3 +39,29 @@ func ExampleEngine_AddListener() {
 	_, _ = e.Execute(engine.Request{Input: nil})
 	// Output: matched always
 }
+
+func ExampleEngine_RuleNames() {
+	var eng engine.Engine = newSampleEngine()
+
+	if lister, ok := eng.(engine.RuleLister); ok {
+		for _, name := range lister.RuleNames() {
+			fmt.Println(name)
+		}
+	}
+	// Output:
+	// is-adult
+	// is-senior
+}
+
+func newSampleEngine() *inmemory.Engine {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "is-adult",
+		Condition: func(in interface{}) bool { return in.(int) >= 18 },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "is-senior",
+		Condition: func(in interface{}) bool { return in.(int) >= 65 },
+	})
+	return e
+}
