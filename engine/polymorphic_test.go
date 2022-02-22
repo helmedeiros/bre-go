@@ -59,6 +59,31 @@ func TestEveryListenerHostFiresThroughTheTypeAssertion(t *testing.T) {
 	}
 }
 
+func TestEveryRuleListerEnumeratesThroughTheTypeAssertion(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		seed func(t *testing.T) engine.Engine
+	}{
+		{name: "inmemory", seed: seedInmemory},
+		{name: "firstmatch", seed: seedFirstmatch},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			eng := tc.seed(t)
+			lister, ok := eng.(engine.RuleLister)
+			if !ok {
+				t.Fatalf("%s: want engine.RuleLister, got plain Engine", tc.name)
+			}
+
+			names := lister.RuleNames()
+
+			if len(names) != 1 || names[0] != "always" {
+				t.Fatalf("RuleNames: want [always], got %v", names)
+			}
+		})
+	}
+}
+
 func seedInmemory(t *testing.T) engine.Engine {
 	t.Helper()
 	e := inmemory.New()
