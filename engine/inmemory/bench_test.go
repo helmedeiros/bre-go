@@ -33,6 +33,51 @@ func BenchmarkExecuteWithListenerOverTenRules(b *testing.B) {
 	}
 }
 
+func BenchmarkRuleNamesOverTenRules(b *testing.B) {
+	e := tenRuleEngine()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.RuleNames()
+	}
+}
+
+func BenchmarkRuleNamesOverHundredRules(b *testing.B) {
+	e := nRuleEngine(100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.RuleNames()
+	}
+}
+
+func nRuleEngine(n int) *inmemory.Engine {
+	e := inmemory.New()
+	for i := 0; i < n; i++ {
+		i := i
+		_ = e.AddRule(inmemory.Rule{
+			Name:      "rule-" + fmtInt(i),
+			Condition: func(in interface{}) bool { return in.(int) >= i },
+		})
+	}
+	return e
+}
+
+func fmtInt(i int) string {
+	const digits = "0123456789"
+	if i == 0 {
+		return "0"
+	}
+	var b [10]byte
+	pos := len(b)
+	for i > 0 {
+		pos--
+		b[pos] = digits[i%10]
+		i /= 10
+	}
+	return string(b[pos:])
+}
+
 func tenRuleEngine() *inmemory.Engine {
 	e := inmemory.New()
 	for i := 0; i < 10; i++ {
