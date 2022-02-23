@@ -59,7 +59,7 @@ func main() {
 | [`engine/inmemory`](engine/inmemory) | Evaluate every rule; last matching action wins on `Output`; every match appears in `Matched`. | You want all decisions a rule set produces, accumulate counts via a listener, or run a "every rule should fire if applicable" policy. |
 | [`engine/firstmatch`](engine/firstmatch) | Evaluate in insertion order; return on the first matching rule. Later rules are never evaluated and their actions never run. | You have a decision table, a content classifier, or a "first applicable rate" policy where rule order encodes precedence. |
 
-Both adapters share the same `Rule` shape (`Name`, `Condition`, `Action`), the same registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`), and both satisfy `engine.ListenerHost` so the observability built-ins (`CountingListener`, `LoggingListener`) attach to either with `e.AddListener(...)`.
+Both adapters share the same `Rule` shape (`Name`, `Condition`, `Action`), the same registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`), and both satisfy `engine.ListenerHost` (so the observability built-ins `CountingListener` and `LoggingListener` attach to either with `e.AddListener(...)`) plus `engine.RuleLister` (so `RuleNames()` enumerates the registered rule set for debug endpoints and startup logging).
 
 The same `enginetest.RunContractTests` suite runs against both -- port-level behavior is identical, only the multi-rule policy differs.
 
@@ -67,7 +67,7 @@ The same `enginetest.RunContractTests` suite runs against both -- port-level beh
 
 | Package | What it gives you |
 |---------|-------------------|
-| [`engine`](engine) | The `Engine` port, `Request`/`Result` value types, the `ListenerHost` optional capability interface. |
+| [`engine`](engine) | The `Engine` port, `Request`/`Result` value types, the `ListenerHost` and `RuleLister` optional capability interfaces. |
 | [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch) | Two concrete adapters with different multi-rule policies. |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |

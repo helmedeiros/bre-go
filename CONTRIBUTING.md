@@ -38,6 +38,7 @@ The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing cal
 **Optional but recommended:**
 
 - **Satisfy `engine.ListenerHost`** if your adapter can fire per-rule events. The two existing adapters both do; the `observability.CountingListener` and `LoggingListener` plug in automatically. A compile-time witness (`var _ engine.ListenerHost = (*Engine)(nil)`) catches signature drift.
+- **Satisfy `engine.RuleLister`** if your adapter can enumerate its rule set. Return a fresh `[]string` in insertion order so mutating the slice does not affect engine state. A compile-time witness mirrors the `ListenerHost` one. See ADR-0016.
 - **Add a runnable example** in `example_test.go` showing the adapter's headline use case. Compile-checked godoc beats prose every time.
 
 See `engine/inmemory/contract_test.go` and `engine/firstmatch/contract_test.go` for the wiring template -- both files are deliberately near-identical.
