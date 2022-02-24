@@ -4,6 +4,8 @@
 #   2. Every README.md link points at a file that exists.
 #   3. Every ADR file has a Status line under "## Status" with one of
 #      the five allowed values from ADR-0011.
+#   4. Every ADR file has the four standard sections:
+#      ## Status, ## Context, ## Decision, ## Consequences.
 set -euo pipefail
 
 ADR_DIR="docs/architecture/decisions"
@@ -37,6 +39,13 @@ for f in "$ADR_DIR"/0*.md; do
       fail=1
       ;;
   esac
+
+  for section in "## Status" "## Context" "## Decision" "## Consequences"; do
+    if ! grep -qFx "$section" "$f"; then
+      echo "ADR $base is missing the section: $section" >&2
+      fail=1
+    fi
+  done
 done
 
 while IFS= read -r linked; do

@@ -33,9 +33,9 @@ func (e *Executor[In, Out]) Execute(in In) (Out, []string, error)
 
 `Executor` wraps any `engine.Engine`, hides the `interface{}` cast at the boundary, and returns a typed result. The rule registration side stays on the underlying adapter -- `inmemory.AddRule` still takes `func(interface{}) bool`. A typed builder on top of that comes in a follow-up ADR if it earns its keep.
 
-## Decision (provisional, pending 1.18 GA)
+## Decision
 
-Add an `engine/exec` sub-package once Go 1.18 ships, with the wrapper shape above. The existing `engine.Engine` port and every adapter stay untyped. Tests for `Executor` live in `engine/exec` and re-use the inmemory adapter as the underlying engine.
+(Provisional, pending Go 1.18 GA.) Add an `engine/exec` sub-package once Go 1.18 ships, with the wrapper shape above. The existing `engine.Engine` port and every adapter stay untyped. Tests for `Executor` live in `engine/exec` and re-use the inmemory adapter as the underlying engine.
 
 When this lands:
 
