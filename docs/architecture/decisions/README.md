@@ -42,3 +42,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0014](0014-firstmatch-adapter.md) | A First-Match Adapter Alongside Inmemory | ✅ Accepted |
 | [0015](0015-boolean-condition-combinators.md) | Boolean Condition Combinators | ✅ Accepted |
 | [0016](0016-rule-lister-optional-interface.md) | RuleLister As An Optional Interface | ✅ Accepted |
+| [0017](0017-per-execution-lifecycle-listeners.md) | Per-Execution Lifecycle Listeners | ✅ Accepted |
