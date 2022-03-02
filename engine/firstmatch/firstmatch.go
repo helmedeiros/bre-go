@@ -4,6 +4,8 @@
 package firstmatch
 
 import (
+	"time"
+
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/observability"
 )
@@ -65,6 +67,9 @@ func (e *Engine) RuleNames() []string {
 // Execute walks rules in insertion order and returns on the first one
 // whose Condition is true. If no rule matches, returns an empty Result.
 func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
+	start := time.Now()
+	e.notifyStarted(req.Input)
+
 	for _, r := range e.rules {
 		if !r.Condition(req.Input) {
 			continue
@@ -74,8 +79,11 @@ func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 			out.Output = r.Action(req.Input)
 		}
 		e.notify(r.Name, req.Input, out.Output)
+		e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
 		return out, nil
 	}
+
+	e.notifyFinished(req.Input, nil, nil, time.Since(start))
 	return engine.Result{}, nil
 }
 
@@ -83,5 +91,21 @@ func (e *Engine) notify(rule string, input, output interface{}) {
 	m := observability.Match{Rule: rule, Input: input, Output: output}
 	for _, l := range e.listeners {
 		l.OnRuleMatched(m)
+	}
+}
+
+func (e *Engine) notifyStarted(input interface{}) {
+	for _, l := range e.listeners {
+		if started, ok := l.(observability.ExecutionStartedListener); ok {
+			started.OnExecutionStarted(input)
+		}
+	}
+}
+
+func (e *Engine) notifyFinished(input, output interface{}, matched []string, duration time.Duration) {
+	for _, l := range e.listeners {
+		if finished, ok := l.(observability.ExecutionFinishedListener); ok {
+			finished.OnExecutionFinished(input, output, matched, duration)
+		}
 	}
 }

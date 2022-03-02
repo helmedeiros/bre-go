@@ -2,6 +2,8 @@
 package inmemory
 
 import (
+	"time"
+
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/observability"
 )
@@ -62,6 +64,9 @@ func (e *Engine) RuleNames() []string {
 // Execute walks every rule and returns the result. Later matching
 // actions overwrite earlier outputs.
 func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
+	start := time.Now()
+	e.notifyStarted(req.Input)
+
 	out := engine.Result{}
 	for _, r := range e.rules {
 		if r.Condition == nil || !r.Condition(req.Input) {
@@ -73,6 +78,8 @@ func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 		}
 		e.notify(r.Name, req.Input, out.Output)
 	}
+
+	e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
 	return out, nil
 }
 
@@ -80,5 +87,21 @@ func (e *Engine) notify(rule string, input, output interface{}) {
 	m := observability.Match{Rule: rule, Input: input, Output: output}
 	for _, l := range e.listeners {
 		l.OnRuleMatched(m)
+	}
+}
+
+func (e *Engine) notifyStarted(input interface{}) {
+	for _, l := range e.listeners {
+		if started, ok := l.(observability.ExecutionStartedListener); ok {
+			started.OnExecutionStarted(input)
+		}
+	}
+}
+
+func (e *Engine) notifyFinished(input, output interface{}, matched []string, duration time.Duration) {
+	for _, l := range e.listeners {
+		if finished, ok := l.(observability.ExecutionFinishedListener); ok {
+			finished.OnExecutionFinished(input, output, matched, duration)
+		}
 	}
 }
