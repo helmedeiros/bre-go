@@ -2,6 +2,7 @@ package observability_test
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/helmedeiros/bre-go/observability"
 )
@@ -28,4 +29,16 @@ func ExampleLoggingListener() {
 	l := observability.NewLoggingListener(stdoutLogger{})
 	l.OnRuleMatched(observability.Match{Rule: "alpha"})
 	// Output: rule matched rule=alpha
+}
+
+func ExampleTimingListener() {
+	tl := &observability.TimingListener{}
+
+	tl.OnExecutionStarted(nil)
+	tl.OnRuleMatched(observability.Match{Rule: "a"})
+	tl.OnRuleMatched(observability.Match{Rule: "b"})
+	tl.OnExecutionFinished(nil, nil, nil, 5*time.Millisecond)
+
+	fmt.Printf("matches=%d observed=%v\n", tl.MatchesInLastExecution(), tl.HasObservedExecution())
+	// Output: matches=2 observed=true
 }

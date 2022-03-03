@@ -71,7 +71,7 @@ The same `enginetest.RunContractTests` suite runs against both -- port-level beh
 | [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch) | Two concrete adapters with different multi-rule policies. |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
-| [`observability`](observability) | `Logger` and `ExecutionListener` ports plus the four built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`. |
+| [`observability`](observability) | `Logger` and `ExecutionListener` ports, two lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`), and the five built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`. |
 
 ## License
 
