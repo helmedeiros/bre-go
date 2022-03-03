@@ -137,6 +137,28 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 	})
 
+	t.Run("if ListenerHost is satisfied, lifecycle listeners receive one start and one finish per Execute", func(t *testing.T) {
+		eng, seed := factory(t)
+		host, ok := eng.(engine.ListenerHost)
+		if !ok {
+			t.Skip("adapter does not satisfy engine.ListenerHost")
+		}
+		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
+			t.Skipf("adapter does not support condition-only rules: %v", err)
+		}
+		rec := &lifecycleRecorder{}
+		host.AddListener(rec)
+		if _, err := eng.Execute(engine.Request{Input: "x"}); err != nil {
+			t.Fatalf("Execute: unexpected error: %v", err)
+		}
+		if rec.startedCalls != 1 {
+			t.Fatalf("OnExecutionStarted: want 1 call, got %d", rec.startedCalls)
+		}
+		if rec.finishedCalls != 1 {
+			t.Fatalf("OnExecutionFinished: want 1 call, got %d", rec.finishedCalls)
+		}
+	})
+
 	t.Run("if RuleLister is satisfied, RuleNames lists the seeded rules", func(t *testing.T) {
 		eng, seed := factory(t)
 		lister, ok := eng.(engine.RuleLister)
