@@ -43,3 +43,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0015](0015-boolean-condition-combinators.md) | Boolean Condition Combinators | ✅ Accepted |
 | [0016](0016-rule-lister-optional-interface.md) | RuleLister As An Optional Interface | ✅ Accepted |
 | [0017](0017-per-execution-lifecycle-listeners.md) | Per-Execution Lifecycle Listeners | ✅ Accepted |
+| [0018](0018-action-panic-recovery.md) | Action Panic Recovery And The Errored Lifecycle Event | ✅ Accepted |
