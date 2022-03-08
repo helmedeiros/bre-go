@@ -173,4 +173,30 @@ func RunContractTests(t *testing.T, factory Factory) {
 			t.Fatalf("RuleNames: want [alpha], got %v", names)
 		}
 	})
+
+	t.Run("if ListenerHost is satisfied, a panicking action surfaces through OnExecutionErrored and Execute returns non-nil", func(t *testing.T) {
+		eng, seed := factory(t)
+		host, ok := eng.(engine.ListenerHost)
+		if !ok {
+			t.Skip("adapter does not satisfy engine.ListenerHost")
+		}
+		err := seed("boom",
+			func(interface{}) bool { return true },
+			func(interface{}) interface{} { panic("kaboom") },
+		)
+		if err != nil {
+			t.Skipf("adapter does not support action rules: %v", err)
+		}
+		rec := &erroredRecorder{}
+		host.AddListener(rec)
+
+		_, execErr := eng.Execute(engine.Request{Input: "x"})
+
+		if execErr == nil {
+			t.Fatalf("Execute: want non-nil error from a panicking action, got nil")
+		}
+		if len(rec.erroredCalls) != 1 {
+			t.Fatalf("OnExecutionErrored: want 1 call, got %d", len(rec.erroredCalls))
+		}
+	})
 }

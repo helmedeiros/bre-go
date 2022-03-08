@@ -20,3 +20,15 @@ func (r *lifecycleRecorder) OnExecutionStarted(interface{}) {
 func (r *lifecycleRecorder) OnExecutionFinished(interface{}, interface{}, []string, time.Duration) {
 	r.finishedCalls++
 }
+
+type erroredRecorder struct {
+	erroredCalls []error
+}
+
+func (r *erroredRecorder) OnRuleMatched(observability.Match) {}
+func (r *erroredRecorder) OnExecutionStarted(interface{})    {}
+func (r *erroredRecorder) OnExecutionFinished(interface{}, interface{}, []string, time.Duration) {
+}
+func (r *erroredRecorder) OnExecutionErrored(_ interface{}, err error) {
+	r.erroredCalls = append(r.erroredCalls, err)
+}
