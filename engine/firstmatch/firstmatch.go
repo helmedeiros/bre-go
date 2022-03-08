@@ -65,7 +65,10 @@ func (e *Engine) RuleNames() []string {
 }
 
 // Execute walks rules in insertion order and returns on the first one
-// whose Condition is true. If no rule matches, returns an empty Result.
+// whose Condition is true. If that rule's Action panics, the panic is
+// recovered and surfaced as an *ActionPanicError; the rule name still
+// appears in Result.Matched (the rule did match -- its Action failed).
+// If no rule matches, returns an empty Result.
 func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 	start := time.Now()
 	e.notifyStarted(req.Input)
@@ -76,7 +79,13 @@ func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 		}
 		out := engine.Result{Matched: []string{r.Name}}
 		if r.Action != nil {
-			out.Output = r.Action(req.Input)
+			output, panicErr := runAction(r.Name, r.Action, req.Input)
+			if panicErr != nil {
+				e.notifyErrored(req.Input, panicErr)
+				e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
+				return out, panicErr
+			}
+			out.Output = output
 		}
 		e.notify(r.Name, req.Input, out.Output)
 		e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
@@ -85,6 +94,16 @@ func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
 
 	e.notifyFinished(req.Input, nil, nil, time.Since(start))
 	return engine.Result{}, nil
+}
+
+func runAction(name string, action func(interface{}) interface{}, input interface{}) (output interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = &ActionPanicError{Rule: name, Value: r}
+		}
+	}()
+	output = action(input)
+	return output, nil
 }
 
 func (e *Engine) notify(rule string, input, output interface{}) {
@@ -106,6 +125,14 @@ func (e *Engine) notifyFinished(input, output interface{}, matched []string, dur
 	for _, l := range e.listeners {
 		if finished, ok := l.(observability.ExecutionFinishedListener); ok {
 			finished.OnExecutionFinished(input, output, matched, duration)
+		}
+	}
+}
+
+func (e *Engine) notifyErrored(input interface{}, err error) {
+	for _, l := range e.listeners {
+		if errored, ok := l.(observability.ExecutionErroredListener); ok {
+			errored.OnExecutionErrored(input, err)
 		}
 	}
 }

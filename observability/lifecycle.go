@@ -16,6 +16,13 @@ type ExecutionFinishedListener interface {
 	OnExecutionFinished(input interface{}, output interface{}, matched []string, duration time.Duration)
 }
 
+// ExecutionErroredListener observes a panicking Action recovered by
+// the adapter. The error carries the rule name via the adapter's
+// ActionPanicError type; use errors.As to access it.
+type ExecutionErroredListener interface {
+	OnExecutionErrored(input interface{}, err error)
+}
+
 // TimingListener records the duration of the most recent execution.
 // Safe for one execution at a time; the zero value is usable.
 type TimingListener struct {
