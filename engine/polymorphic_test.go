@@ -84,6 +84,58 @@ func TestEveryRuleListerEnumeratesThroughTheTypeAssertion(t *testing.T) {
 	}
 }
 
+func TestEveryAdapterRecoversFromPanickingActions(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		seed func(t *testing.T) engine.Engine
+	}{
+		{name: "inmemory", seed: seedPanickingInmemory},
+		{name: "firstmatch", seed: seedPanickingFirstmatch},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			eng := tc.seed(t)
+
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("panic leaked from Execute: %v", r)
+				}
+			}()
+			_, err := eng.Execute(engine.Request{Input: nil})
+
+			if err == nil {
+				t.Fatalf("Execute: want non-nil error from panicking action, got nil")
+			}
+		})
+	}
+}
+
+func seedPanickingInmemory(t *testing.T) engine.Engine {
+	t.Helper()
+	e := inmemory.New()
+	if err := e.AddRule(inmemory.Rule{
+		Name:      "boom",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(interface{}) interface{} { panic("kaboom") },
+	}); err != nil {
+		t.Fatalf("inmemory.AddRule: unexpected error: %v", err)
+	}
+	return e
+}
+
+func seedPanickingFirstmatch(t *testing.T) engine.Engine {
+	t.Helper()
+	e := firstmatch.New()
+	if err := e.AddRule(firstmatch.Rule{
+		Name:      "boom",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(interface{}) interface{} { panic("kaboom") },
+	}); err != nil {
+		t.Fatalf("firstmatch.AddRule: unexpected error: %v", err)
+	}
+	return e
+}
+
 func seedInmemory(t *testing.T) engine.Engine {
 	t.Helper()
 	e := inmemory.New()
