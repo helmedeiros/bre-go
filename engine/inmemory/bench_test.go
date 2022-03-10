@@ -20,6 +20,23 @@ func BenchmarkExecuteOverTenRules(b *testing.B) {
 	}
 }
 
+func BenchmarkExecuteRecoveryOverhead(b *testing.B) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "noop",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(in interface{}) interface{} { return in },
+	})
+	req := engine.Request{Input: 5}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := e.Execute(req); err != nil {
+			b.Fatalf("Execute: unexpected error: %v", err)
+		}
+	}
+}
+
 func BenchmarkExecuteWithListenerOverTenRules(b *testing.B) {
 	e := tenRuleEngine()
 	e.AddListener(observability.NopExecutionListener{})
