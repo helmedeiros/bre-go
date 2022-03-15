@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — pending Go 1.18 GA (currently scheduled for March 15, 2022). Will transition to **Accepted** in the same commit that bumps `go.mod` to 1.18 and lands the implementation. If 1.18 slips past Q2 2022, this ADR is revisited.
+Accepted
 
 ## Context
 
@@ -35,19 +35,23 @@ func (e *Executor[In, Out]) Execute(in In) (Out, []string, error)
 
 ## Decision
 
-(Provisional, pending Go 1.18 GA.) Add an `engine/exec` sub-package once Go 1.18 ships, with the wrapper shape above. The existing `engine.Engine` port and every adapter stay untyped. Tests for `Executor` live in `engine/exec` and re-use the inmemory adapter as the underlying engine.
+Add an `engine/exec` sub-package with the wrapper shape above. The existing `engine.Engine` port and every adapter stay untyped. Tests for `Executor` live in `engine/exec` and re-use the inmemory adapter as the underlying engine.
 
-When this lands:
+`Execute` returns `(Out, []string, error)`. The error path covers two distinct cases the caller branches on:
 
-- ADR-0004 transitions to **Superseded by ADR-0013** for the part that says "callers carry the cost permanently". The `interface{}` port stays, but the typed escape hatch exists.
-- `go.mod` goes from `go 1.17` to `go 1.18`.
-- CI's `setup-go` matrix grows to `[1.17, 1.18]` for one release cycle to catch regressions on the floor, then drops 1.17.
+- The underlying engine returned an error (panic recovery, future validation failures). Pass it through unchanged.
+- The engine produced an `Output` that is not assignable to `Out`. Surface as `*OutputTypeMismatchError` carrying the expected and actual type names. This catches the realistic mistake where a caller wires up an `Executor[Input, string]` over an engine whose actions return ints.
+
+A `nil` Output (no rule had an action, or no rule matched) returns the zero value of `Out` and a `nil` error -- this is not a mismatch, it is "no decision".
 
 ## Consequences
 
-Two consequences worth flagging while this ADR sits in Proposed:
+The pre-1.18 `interface{}` port keeps every adapter untyped, so adapters that need to host rules of mixed shapes (one rule reading strings, another reading ints) can continue to do so. Callers that want type safety for their *own* call sites wrap with `Executor[In, Out]` and pay one type assertion at the boundary, exactly as designed.
 
-1. **Nothing in `main` should pre-empt the wrapper shape.** No `interface{}`-heavy helpers in `engine/inmemory` that would become awkward to retrofit a generic wrapper on top of. The existing `Rule` shape is fine; the wrapper sits *over* `Engine.Execute`, not inside the adapter.
-2. **ADR-0004's `Superseded by ADR-0013` edit is deliberately deferred.** It moves in the same commit as the implementation, per ADR-0011's three-edit discipline. Until then, ADR-0004 stays Accepted (provisional) and ADR-0013 stays Proposed. The status table makes both visible.
+Companion commits land together with this ADR's implementation:
 
-If the 1.18 release slips or the wrapper turns out to be unnecessary in real caller code, this ADR transitions to **Deprecated** rather than Superseded -- no replacement, the `interface{}` port simply remains the answer.
+- `go.mod` bumps from `go 1.17` to `go 1.18`.
+- CI's `setup-go` bumps to `1.18`.
+- ADR-0004's status changes to `Superseded by ADR-0013` with a forward-link callout at the top of its body, per ADR-0011's three-edit discipline.
+
+ADR-0004's underlying decision is not reversed: the engine port stays untyped. What is superseded is the implicit "callers carry the `interface{}` cost permanently" framing -- the typed escape hatch now exists.

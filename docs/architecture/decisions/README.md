@@ -29,7 +29,7 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0001](0001-bounded-goals.md) | Bounded Goals For This Project | ✅ Accepted |
 | [0002](0002-go-as-the-language.md) | Go As The Implementation Language | ✅ Accepted |
 | [0003](0003-engine-port.md) | The Engine Port | ✅ Accepted |
-| [0004](0004-pre-generics-input-handling.md) | Pre-Generics Input Handling | ⏳ Accepted (provisional; sunset on Go 1.18 GA) |
+| [0004](0004-pre-generics-input-handling.md) | Pre-Generics Input Handling | ♻️ Superseded by [ADR-0013](0013-generic-executor-layer.md) |
 | [0005](0005-engine-execute-returns-error.md) | engine.Engine.Execute Returns An Error | ✅ Accepted |
 | [0006](0006-rename-context-to-request.md) | Rename engine.Context To engine.Request | ✅ Accepted |
 | [0007](0007-execution-listener.md) | Execution Listener As An Observer Port | ✅ Accepted |
@@ -38,7 +38,7 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0010](0010-listener-host-optional-interface.md) | ListenerHost As An Optional Interface | ✅ Accepted |
 | [0011](0011-adr-lifecycle-and-supersession.md) | ADR Lifecycle And Supersession Convention | ✅ Accepted |
 | [0012](0012-reject-rules-with-nil-condition.md) | Reject Rules With A Nil Condition | ✅ Accepted |
-| [0013](0013-generic-executor-layer.md) | Generic Executor Layer Over engine.Engine | 📝 Proposed (pending Go 1.18 GA) |
+| [0013](0013-generic-executor-layer.md) | Generic Executor Layer Over engine.Engine | ✅ Accepted |
 | [0014](0014-firstmatch-adapter.md) | A First-Match Adapter Alongside Inmemory | ✅ Accepted |
 | [0015](0015-boolean-condition-combinators.md) | Boolean Condition Combinators | ✅ Accepted |
 | [0016](0016-rule-lister-optional-interface.md) | RuleLister As An Optional Interface | ✅ Accepted |

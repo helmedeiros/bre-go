@@ -1,8 +1,10 @@
 # 4. Pre-Generics Input Handling
 
+> Superseded by [ADR-0013 Generic Executor Layer Over engine.Engine](0013-generic-executor-layer.md). The pre-generics `interface{}` port described here remains the load-bearing engine.Engine surface; the typed escape hatch (`Executor[In, Out]`) is the recommended way for callers to interact with it now that Go 1.18 has shipped.
+
 ## Status
 
-Accepted (provisional; superseded by a follow-up ADR once Go 1.18 ships)
+Superseded by ADR-0013
 
 ## Context
 
