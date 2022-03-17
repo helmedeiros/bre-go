@@ -70,6 +70,7 @@ The same `enginetest.RunContractTests` suite runs against both -- port-level beh
 | [`engine`](engine) | The `Engine` port, `Request`/`Result` value types, the `ListenerHost` and `RuleLister` optional capability interfaces. |
 | [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch) | Two concrete adapters with different multi-rule policies. |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
+| [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
 | [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and the five built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`. |
 

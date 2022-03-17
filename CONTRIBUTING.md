@@ -11,7 +11,7 @@ cd bre-go
 
 Required tools (the [`Makefile`](Makefile) will tell you what is missing once it lands later this week):
 
-- Go 1.17 (or newer)
+- Go 1.18 (or newer; required since the `engine/exec` generic wrapper landed)
 - [`golangci-lint`](https://golangci-lint.run/)
 
 ## Branching and commits
@@ -40,6 +40,8 @@ The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing cal
 - **Satisfy `engine.ListenerHost`** if your adapter can fire per-rule events. The two existing adapters both do; the `observability.CountingListener` and `LoggingListener` plug in automatically. A compile-time witness (`var _ engine.ListenerHost = (*Engine)(nil)`) catches signature drift.
 - **Satisfy `engine.RuleLister`** if your adapter can enumerate its rule set. Return a fresh `[]string` in insertion order so mutating the slice does not affect engine state. A compile-time witness mirrors the `ListenerHost` one. See ADR-0016.
 - **Recover panicking actions** in `Execute`. Surface them as a typed `ActionPanicError` local to your adapter (carrying `Rule` and `Value`, with a `RuleName()` accessor) and notify any `observability.ExecutionErroredListener` before returning the partial `Result` + non-nil error. See ADR-0018.
+
+Adapters automatically work with the generic `engine/exec.Executor[In, Out]` wrapper -- the wrapper sits over `engine.Engine.Execute` and does not call into adapter internals. No extra wiring needed.
 - **Add a runnable example** in `example_test.go` showing the adapter's headline use case. Compile-checked godoc beats prose every time.
 
 See `engine/inmemory/contract_test.go` and `engine/firstmatch/contract_test.go` for the wiring template -- both files are deliberately near-identical.
