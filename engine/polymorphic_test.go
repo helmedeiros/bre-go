@@ -6,6 +6,7 @@ import (
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/engine/firstmatch"
 	"github.com/helmedeiros/bre-go/engine/inmemory"
+	"github.com/helmedeiros/bre-go/engine/priority"
 	"github.com/helmedeiros/bre-go/observability"
 )
 
@@ -16,6 +17,7 @@ func TestEverySeededAdapterExecutesUnderThePort(t *testing.T) {
 	}{
 		{name: "inmemory", seed: seedInmemory},
 		{name: "firstmatch", seed: seedFirstmatch},
+		{name: "priority", seed: seedPriority},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -39,6 +41,7 @@ func TestEveryListenerHostFiresThroughTheTypeAssertion(t *testing.T) {
 	}{
 		{name: "inmemory", seed: seedInmemory},
 		{name: "firstmatch", seed: seedFirstmatch},
+		{name: "priority", seed: seedPriority},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,6 +69,7 @@ func TestEveryRuleListerEnumeratesThroughTheTypeAssertion(t *testing.T) {
 	}{
 		{name: "inmemory", seed: seedInmemory},
 		{name: "firstmatch", seed: seedFirstmatch},
+		{name: "priority", seed: seedPriority},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -91,6 +95,7 @@ func TestEveryAdapterRecoversFromPanickingActions(t *testing.T) {
 	}{
 		{name: "inmemory", seed: seedPanickingInmemory},
 		{name: "firstmatch", seed: seedPanickingFirstmatch},
+		{name: "priority", seed: seedPanickingPriority},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,6 +161,31 @@ func seedFirstmatch(t *testing.T) engine.Engine {
 		Condition: func(interface{}) bool { return true },
 	}); err != nil {
 		t.Fatalf("firstmatch.AddRule: unexpected error: %v", err)
+	}
+	return e
+}
+
+func seedPriority(t *testing.T) engine.Engine {
+	t.Helper()
+	e := priority.New()
+	if err := e.AddRule(priority.Rule{
+		Name:      "always",
+		Condition: func(interface{}) bool { return true },
+	}); err != nil {
+		t.Fatalf("priority.AddRule: unexpected error: %v", err)
+	}
+	return e
+}
+
+func seedPanickingPriority(t *testing.T) engine.Engine {
+	t.Helper()
+	e := priority.New()
+	if err := e.AddRule(priority.Rule{
+		Name:      "boom",
+		Condition: func(interface{}) bool { return true },
+		Action:    func(interface{}) interface{} { panic("kaboom") },
+	}); err != nil {
+		t.Fatalf("priority.AddRule: unexpected error: %v", err)
 	}
 	return e
 }
