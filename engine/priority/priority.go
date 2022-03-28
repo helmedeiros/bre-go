@@ -14,11 +14,15 @@ import (
 
 // Rule is a named, prioritized condition with an optional action.
 // Higher Priority evaluates first; ties break by insertion order.
+// Description and Tags are optional metadata surfaced through
+// engine.RuleInfoLister; they have no effect on Execute.
 type Rule struct {
-	Name      string
-	Priority  int
-	Condition func(input interface{}) bool
-	Action    func(input interface{}) interface{}
+	Name        string
+	Priority    int
+	Description string
+	Tags        []string
+	Condition   func(input interface{}) bool
+	Action      func(input interface{}) interface{}
 }
 
 // New returns an empty engine.
@@ -67,6 +71,22 @@ func (e *Engine) RuleNames() []string {
 		names[i] = r.Name
 	}
 	return names
+}
+
+// RuleInfos returns every registered rule's metadata in insertion
+// order. Description and Tags reflect the values set on each Rule.
+// As with RuleNames, the order is insertion, not priority -- the
+// caller debugging "what's loaded" sees the registration sequence.
+func (e *Engine) RuleInfos() []engine.RuleInfo {
+	infos := make([]engine.RuleInfo, len(e.rules))
+	for i, r := range e.rules {
+		infos[i] = engine.RuleInfo{
+			Name:        r.Name,
+			Description: r.Description,
+			Tags:        r.Tags,
+		}
+	}
+	return infos
 }
 
 // Execute walks the rules in descending priority order (ties broken by

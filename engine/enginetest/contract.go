@@ -159,6 +159,21 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 	})
 
+	t.Run("if RuleInfoLister is satisfied, RuleInfos lists the seeded rules", func(t *testing.T) {
+		eng, seed := factory(t)
+		lister, ok := eng.(engine.RuleInfoLister)
+		if !ok {
+			t.Skip("adapter does not satisfy engine.RuleInfoLister")
+		}
+		if err := seed("alpha", func(interface{}) bool { return true }, nil); err != nil {
+			t.Skipf("adapter does not support condition-only rules: %v", err)
+		}
+		infos := lister.RuleInfos()
+		if len(infos) != 1 || infos[0].Name != "alpha" {
+			t.Fatalf("RuleInfos: want one entry with Name=alpha, got %v", infos)
+		}
+	})
+
 	t.Run("if RuleLister is satisfied, RuleNames lists the seeded rules", func(t *testing.T) {
 		eng, seed := factory(t)
 		lister, ok := eng.(engine.RuleLister)

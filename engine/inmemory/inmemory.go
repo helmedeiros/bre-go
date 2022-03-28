@@ -9,10 +9,14 @@ import (
 )
 
 // Rule is a named condition with an optional action.
+// Description and Tags are optional metadata surfaced through
+// engine.RuleInfoLister; they have no effect on Execute.
 type Rule struct {
-	Name      string
-	Condition func(input interface{}) bool
-	Action    func(input interface{}) interface{}
+	Name        string
+	Description string
+	Tags        []string
+	Condition   func(input interface{}) bool
+	Action      func(input interface{}) interface{}
 }
 
 // New returns an empty engine.
@@ -59,6 +63,21 @@ func (e *Engine) RuleNames() []string {
 		names[i] = r.Name
 	}
 	return names
+}
+
+// RuleInfos returns every registered rule's metadata in insertion
+// order. Description and Tags reflect the values set on each Rule;
+// callers that did not set them get empty defaults.
+func (e *Engine) RuleInfos() []engine.RuleInfo {
+	infos := make([]engine.RuleInfo, len(e.rules))
+	for i, r := range e.rules {
+		infos[i] = engine.RuleInfo{
+			Name:        r.Name,
+			Description: r.Description,
+			Tags:        r.Tags,
+		}
+	}
+	return infos
 }
 
 // Execute walks every rule and returns the result. Later matching
