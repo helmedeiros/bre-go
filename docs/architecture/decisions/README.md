@@ -45,3 +45,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0017](0017-per-execution-lifecycle-listeners.md) | Per-Execution Lifecycle Listeners | ✅ Accepted |
 | [0018](0018-action-panic-recovery.md) | Action Panic Recovery And The Errored Lifecycle Event | ✅ Accepted |
 | [0019](0019-priority-adapter.md) | A Priority-Ordered Adapter | ✅ Accepted |
+| [0020](0020-rule-info-introspection.md) | RuleInfo Introspection Beyond Names | ✅ Accepted |
