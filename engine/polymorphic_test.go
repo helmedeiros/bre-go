@@ -141,6 +141,32 @@ func seedPanickingFirstmatch(t *testing.T) engine.Engine {
 	return e
 }
 
+func TestEveryRuleInfoListerSurfacesMetadataThroughTheTypeAssertion(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		seed func(t *testing.T) engine.Engine
+	}{
+		{name: "inmemory", seed: seedInmemory},
+		{name: "firstmatch", seed: seedFirstmatch},
+		{name: "priority", seed: seedPriority},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			eng := tc.seed(t)
+			lister, ok := eng.(engine.RuleInfoLister)
+			if !ok {
+				t.Fatalf("%s: want engine.RuleInfoLister, got plain Engine", tc.name)
+			}
+
+			infos := lister.RuleInfos()
+
+			if len(infos) != 1 || infos[0].Name != "always" {
+				t.Fatalf("RuleInfos: want one entry with Name=always, got %v", infos)
+			}
+		})
+	}
+}
+
 func seedInmemory(t *testing.T) engine.Engine {
 	t.Helper()
 	e := inmemory.New()
