@@ -39,6 +39,7 @@ The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing cal
 
 - **Satisfy `engine.ListenerHost`** if your adapter can fire per-rule events. The two existing adapters both do; the `observability.CountingListener` and `LoggingListener` plug in automatically. A compile-time witness (`var _ engine.ListenerHost = (*Engine)(nil)`) catches signature drift.
 - **Satisfy `engine.RuleLister`** if your adapter can enumerate its rule set. Return a fresh `[]string` in insertion order so mutating the slice does not affect engine state. A compile-time witness mirrors the `ListenerHost` one. See ADR-0016.
+- **Satisfy `engine.RuleInfoLister`** if your `Rule` carries metadata callers might want to introspect. Return a fresh `[]engine.RuleInfo` in insertion order; mapping `Name`/`Description`/`Tags` from your adapter's local `Rule` struct is enough. See ADR-0020.
 - **Recover panicking actions** in `Execute`. Surface them as a typed `ActionPanicError` local to your adapter (carrying `Rule` and `Value`, with a `RuleName()` accessor) and notify any `observability.ExecutionErroredListener` before returning the partial `Result` + non-nil error. See ADR-0018.
 
 Adapters automatically work with the generic `engine/exec.Executor[In, Out]` wrapper -- the wrapper sits over `engine.Engine.Execute` and does not call into adapter internals. No extra wiring needed.
