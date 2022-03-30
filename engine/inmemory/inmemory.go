@@ -67,17 +67,28 @@ func (e *Engine) RuleNames() []string {
 
 // RuleInfos returns every registered rule's metadata in insertion
 // order. Description and Tags reflect the values set on each Rule;
-// callers that did not set them get empty defaults.
+// callers that did not set them get empty defaults. The returned
+// slice and each RuleInfo's Tags are fresh copies; mutating either
+// does not affect engine state.
 func (e *Engine) RuleInfos() []engine.RuleInfo {
 	infos := make([]engine.RuleInfo, len(e.rules))
 	for i, r := range e.rules {
 		infos[i] = engine.RuleInfo{
 			Name:        r.Name,
 			Description: r.Description,
-			Tags:        r.Tags,
+			Tags:        copyTags(r.Tags),
 		}
 	}
 	return infos
+}
+
+func copyTags(tags []string) []string {
+	if tags == nil {
+		return nil
+	}
+	out := make([]string, len(tags))
+	copy(out, tags)
+	return out
 }
 
 // Execute walks every rule and returns the result. Later matching
