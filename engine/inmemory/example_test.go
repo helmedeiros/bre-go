@@ -53,6 +53,29 @@ func ExampleEngine_RuleNames() {
 	// is-senior
 }
 
+func ExampleEngine_RuleInfos() {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:        "is-adult",
+		Description: "voting age",
+		Tags:        []string{"age", "eligibility"},
+		Condition:   func(in interface{}) bool { return in.(int) >= 18 },
+	})
+	_ = e.AddRule(inmemory.Rule{
+		Name:        "is-senior",
+		Description: "senior discount eligibility",
+		Tags:        []string{"age", "discount"},
+		Condition:   func(in interface{}) bool { return in.(int) >= 65 },
+	})
+
+	for _, info := range e.RuleInfos() {
+		fmt.Printf("%s [%v]: %s\n", info.Name, info.Tags, info.Description)
+	}
+	// Output:
+	// is-adult [[age eligibility]]: voting age
+	// is-senior [[age discount]]: senior discount eligibility
+}
+
 func newSampleEngine() *inmemory.Engine {
 	e := inmemory.New()
 	_ = e.AddRule(inmemory.Rule{
