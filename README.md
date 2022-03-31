@@ -6,7 +6,23 @@ The public API is backend-agnostic. Today it ships with two small in-process eng
 
 ## Status
 
-Early. The architecture is being built first, the engine implementations follow. See [`docs/architecture/decisions/`](docs/architecture/decisions/) for the design record.
+Pre-1.0, but feature-complete for the architectural goals from [ADR-0001](docs/architecture/decisions/0001-bounded-goals.md). Three concrete adapters, six public packages, twenty Architecture Decision Records on `main`. See [`docs/architecture/decisions/`](docs/architecture/decisions/) for the full design record and the current status of each ADR.
+
+## Stability
+
+What you can build on today:
+
+- **`engine.Engine` port and value types (`Request`, `Result`, `RuleInfo`).** Stable. Used by every adapter and the generic wrapper. Any change here would supersede ADR-0003.
+- **Optional capability interfaces (`ListenerHost`, `RuleLister`, `RuleInfoLister`).** Stable. Adapters discover support through the standard Go type-assertion idiom.
+- **Adapter registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`).** Stable. Same sentinels, same shape-first-then-state-second check order on every adapter.
+- **Listener lifecycle (`OnRuleMatched`, `OnExecutionStarted`, `OnExecutionFinished`, `OnExecutionErrored`).** Stable. Per-execution `OnRuleMatched` fires for successful matches only; `OnExecutionErrored` carries the typed `ActionPanicError`.
+- **`engine/exec.Executor[In, Out]`.** Stable since Go 1.18 GA. Wraps any `engine.Engine`.
+
+What may still change:
+
+- **Adapter-internal `Rule` struct field order.** Today's adapters keep `Name` first by convention; a future ADR could land a builder pattern that hides the struct entirely.
+- **Benchmark numbers.** No regression policy yet; numbers in `make bench` output are baselines for local comparison, not contract.
+- **`docs/usage` tutorial layout.** Currently inline in README; may move to a dedicated `docs/` walkthrough as it grows.
 
 ## Quickstart
 
