@@ -68,6 +68,42 @@ func BenchmarkRuleNamesOverHundredRules(b *testing.B) {
 	}
 }
 
+func BenchmarkRuleInfosOverTenRules(b *testing.B) {
+	e := tenRuleEngineWithTags()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.RuleInfos()
+	}
+}
+
+func BenchmarkRuleInfosOverHundredRules(b *testing.B) {
+	e := nRuleEngineWithTags(100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.RuleInfos()
+	}
+}
+
+func tenRuleEngineWithTags() *inmemory.Engine {
+	return nRuleEngineWithTags(10)
+}
+
+func nRuleEngineWithTags(n int) *inmemory.Engine {
+	e := inmemory.New()
+	for i := 0; i < n; i++ {
+		i := i
+		_ = e.AddRule(inmemory.Rule{
+			Name:        "rule-" + fmtInt(i),
+			Description: "auto-generated rule",
+			Tags:        []string{"benchmark", "synthetic"},
+			Condition:   func(in interface{}) bool { return in.(int) >= i },
+		})
+	}
+	return e
+}
+
 func nRuleEngine(n int) *inmemory.Engine {
 	e := inmemory.New()
 	for i := 0; i < n; i++ {
