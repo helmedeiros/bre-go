@@ -46,3 +46,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0018](0018-action-panic-recovery.md) | Action Panic Recovery And The Errored Lifecycle Event | ✅ Accepted |
 | [0019](0019-priority-adapter.md) | A Priority-Ordered Adapter | ✅ Accepted |
 | [0020](0020-rule-info-introspection.md) | RuleInfo Introspection Beyond Names | ✅ Accepted |
+| [0021](0021-release-versioning-policy.md) | Release Versioning Policy And Cutting v0.1.0 | ✅ Accepted |
