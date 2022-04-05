@@ -3,14 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and the project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-once a first tagged release is cut.
+and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md) for the 0.x interpretation.
 
 ## [Unreleased]
 
+## [0.1.0] - 2022-04-07
+
+First tagged release. Three concrete adapters, six public packages, twenty-one Architecture Decision Records, 100% per-package test coverage.
+
 ### Added
 
-- ADRs 0001–0020: bounded goals, Go as the language, the engine port, pre-generics input handling (now superseded by ADR-0013), the `(Result, error)` return on `Execute`, the `Context`→`Request` rename, the Execution Listener observer port, built-in listener implementations, rejecting duplicate rule names on `AddRule`, `ListenerHost` as an optional capability interface, the ADR lifecycle/supersession convention, rejecting rules with a nil `Condition`, the generic `Executor[In, Out]` wrapper layer over `engine.Engine`, a first-match adapter alongside inmemory, Boolean condition combinators, `RuleLister` as an optional introspection interface, per-execution lifecycle listeners, action panic recovery with the Errored lifecycle event, a priority-ordered adapter, and `RuleInfoLister` for introspection beyond names.
+- ADRs 0001–0021: bounded goals, Go as the language, the engine port, pre-generics input handling (now superseded by ADR-0013), the `(Result, error)` return on `Execute`, the `Context`→`Request` rename, the Execution Listener observer port, built-in listener implementations, rejecting duplicate rule names on `AddRule`, `ListenerHost` as an optional capability interface, the ADR lifecycle/supersession convention, rejecting rules with a nil `Condition`, the generic `Executor[In, Out]` wrapper layer over `engine.Engine`, a first-match adapter alongside inmemory, Boolean condition combinators, `RuleLister` as an optional introspection interface, per-execution lifecycle listeners, action panic recovery with the Errored lifecycle event, a priority-ordered adapter, `RuleInfoLister` for introspection beyond names, and the release versioning policy.
 - `Makefile` and CI workflow running lint + vet + test + coverage threshold from commit one. The cover target tolerates the empty-module and the no-statements case (vacuously passes) and filters `enginetest/` from the production-code coverage calculation. A `bench` target runs `go test -bench=. -benchmem` across every package.
 - `engine` package: the `Engine` port, `Request` and `Result` value types, a witness `nilEngine` in tests proving the interface is implementable.
 - `engine/inmemory`: the first concrete adapter. `Rule` holds a `Name`, a `Condition`, and an `Action`. `AddRule` rejects empty names with `ErrEmptyRuleName`, rules with a nil `Condition` with `ErrNilCondition`, and duplicate names with `ErrDuplicateRuleName` (shape-first, state-second check order, so error returns stay deterministic regardless of registration order). `Execute` walks rules in insertion order, appends matched names, and lets later actions overwrite earlier `Output` (last-match-wins). A panicking `Action` is recovered and surfaced as an `*ActionPanicError` (carrying the rule name via `RuleName()`); `Execute` stops on the first panic and returns the partial `Result` + the error. `AddListener` registers any number of `observability.ExecutionListener`s; `Execute` fires `OnRuleMatched` once per matching rule after a successful action, with `OnExecutionErrored` firing for the panicking rule instead. The adapter satisfies the new `engine.ListenerHost` capability interface.

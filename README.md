@@ -6,7 +6,13 @@ The public API is backend-agnostic. Today it ships with two small in-process eng
 
 ## Status
 
-Pre-1.0, but feature-complete for the architectural goals from [ADR-0001](docs/architecture/decisions/0001-bounded-goals.md). Three concrete adapters, six public packages, twenty Architecture Decision Records on `main`. See [`docs/architecture/decisions/`](docs/architecture/decisions/) for the full design record and the current status of each ADR.
+[![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
+
+`v0.1.0` -- first tagged release. Three concrete adapters, six public packages, twenty-one Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but will land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+
+```sh
+go get github.com/helmedeiros/bre-go@v0.1.0
+```
 
 ## Stability
 
