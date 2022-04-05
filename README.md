@@ -38,16 +38,16 @@ package main
 import (
 	"fmt"
 
-	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/engine/conditions"
+	"github.com/helmedeiros/bre-go/engine/exec"
 	"github.com/helmedeiros/bre-go/engine/inmemory"
 	"github.com/helmedeiros/bre-go/observability"
 )
 
-type order struct {
-	amount   int
-	currency string
-	flagged  bool
+type Order struct {
+	Amount   int
+	Currency string
+	Flagged  bool
 }
 
 func main() {
@@ -56,20 +56,22 @@ func main() {
 	e.AddListener(counter)
 
 	_ = e.AddRule(inmemory.Rule{
-		Name: "high-value-clean-usd",
+		Name:        "high-value-clean-usd",
+		Description: "approve high-value USD orders that are not flagged",
+		Tags:        []string{"approval"},
 		Condition: conditions.And(
-			func(in interface{}) bool { return in.(order).amount > 100 },
-			func(in interface{}) bool { return in.(order).currency == "USD" },
-			conditions.Not(func(in interface{}) bool { return in.(order).flagged }),
+			func(in interface{}) bool { return in.(Order).Amount > 100 },
+			func(in interface{}) bool { return in.(Order).Currency == "USD" },
+			conditions.Not(func(in interface{}) bool { return in.(Order).Flagged }),
 		),
 		Action: func(interface{}) interface{} { return "approve" },
 	})
 
-	res, _ := e.Execute(engine.Request{
-		Input: order{amount: 250, currency: "USD"},
-	})
+	// Wrap the engine for typed input/output; underlying adapter unchanged.
+	ex := exec.New[Order, string](e)
+	decision, matched, _ := ex.Execute(Order{Amount: 250, Currency: "USD"})
 
-	fmt.Println(res.Matched, res.Output, counter.Total())
+	fmt.Println(matched, decision, counter.Total())
 	// Output: [high-value-clean-usd] approve 1
 }
 ```
