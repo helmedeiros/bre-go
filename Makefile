@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html bench check-adrs all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench check-adrs check-quickstart all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -17,7 +17,8 @@ help:
 	@echo "  cover-html  - open the per-line HTML coverage report"
 	@echo "  bench       - run benchmarks across all packages"
 	@echo "  check-adrs  - verify the ADR README index matches the folder"
-	@echo "  all         - lint + vet + test + cover + check-adrs"
+	@echo "  check-quickstart - build & run the README Quickstart against this checkout"
+	@echo "  all         - lint + vet + test + cover + check-adrs + check-quickstart"
 	@echo "  ci-local    - the same checks CI runs, in the same order"
 	@echo "  clean       - remove generated coverage artifacts"
 
@@ -85,7 +86,10 @@ endif
 check-adrs:
 	@bash scripts/check-adrs.sh
 
-all: lint vet test cover check-adrs
+check-quickstart:
+	@bash scripts/check-quickstart.sh
+
+all: lint vet test cover check-adrs check-quickstart
 
 ci-local: all
 
