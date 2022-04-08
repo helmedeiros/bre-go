@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+_Nothing yet -- v0.1.0 just shipped. New entries land here._
+
 ## [0.1.0] - 2022-04-07
 
 First tagged release. Three concrete adapters, six public packages, twenty-one Architecture Decision Records, 100% per-package test coverage.
