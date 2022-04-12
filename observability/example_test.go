@@ -42,3 +42,16 @@ func ExampleTimingListener() {
 	fmt.Printf("matches=%d observed=%v\n", tl.MatchesInLastExecution(), tl.HasObservedExecution())
 	// Output: matches=2 observed=true
 }
+
+func ExampleSnapshotListener() {
+	snap := &observability.SnapshotListener{}
+
+	snap.OnExecutionStarted("input-1")
+	snap.OnRuleMatched(observability.Match{Rule: "alpha"})
+	snap.OnRuleMatched(observability.Match{Rule: "beta"})
+	snap.OnExecutionFinished("input-1", "decision-x", []string{"alpha", "beta"}, time.Millisecond)
+
+	fmt.Printf("started=%d matches=%d finished=%d errored=%d\n",
+		len(snap.Started), len(snap.Matches), len(snap.Finished), len(snap.Errored))
+	// Output: started=1 matches=2 finished=1 errored=0
+}
