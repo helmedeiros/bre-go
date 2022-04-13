@@ -146,16 +146,16 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		rec := &lifecycleRecorder{}
+		rec := &observability.SnapshotListener{}
 		host.AddListener(rec)
 		if _, err := eng.Execute(engine.Request{Input: "x"}); err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
-		if rec.startedCalls != 1 {
-			t.Fatalf("OnExecutionStarted: want 1 call, got %d", rec.startedCalls)
+		if len(rec.Started) != 1 {
+			t.Fatalf("OnExecutionStarted: want 1 call, got %d", len(rec.Started))
 		}
-		if rec.finishedCalls != 1 {
-			t.Fatalf("OnExecutionFinished: want 1 call, got %d", rec.finishedCalls)
+		if len(rec.Finished) != 1 {
+			t.Fatalf("OnExecutionFinished: want 1 call, got %d", len(rec.Finished))
 		}
 	})
 
@@ -202,7 +202,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err != nil {
 			t.Skipf("adapter does not support action rules: %v", err)
 		}
-		rec := &erroredRecorder{}
+		rec := &observability.SnapshotListener{}
 		host.AddListener(rec)
 
 		_, execErr := eng.Execute(engine.Request{Input: "x"})
@@ -210,8 +210,8 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if execErr == nil {
 			t.Fatalf("Execute: want non-nil error from a panicking action, got nil")
 		}
-		if len(rec.erroredCalls) != 1 {
-			t.Fatalf("OnExecutionErrored: want 1 call, got %d", len(rec.erroredCalls))
+		if len(rec.Errored) != 1 {
+			t.Fatalf("OnExecutionErrored: want 1 call, got %d", len(rec.Errored))
 		}
 	})
 }
