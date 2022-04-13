@@ -97,7 +97,7 @@ The same `enginetest.RunContractTests` suite runs against all three -- port-leve
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
-| [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and the five built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`. |
+| [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and six built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`, `SnapshotListener` (test-helper that captures all four lifecycle events for later assertion). |
 
 ## License
 
