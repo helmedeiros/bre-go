@@ -45,6 +45,8 @@ The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing cal
 Adapters automatically work with the generic `engine/exec.Executor[In, Out]` wrapper -- the wrapper sits over `engine.Engine.Execute` and does not call into adapter internals. No extra wiring needed.
 - **Add a runnable example** in `example_test.go` showing the adapter's headline use case. Compile-checked godoc beats prose every time.
 
+For tests that need to assert which lifecycle events fired, use `observability.SnapshotListener` -- it implements all four listener interfaces and stores the captured events in public slices (`Matches`, `Started`, `Finished`, `Errored`) ready for assertion. Avoid hand-rolling per-test recorder types; the built-in covers the pattern.
+
 See `engine/inmemory/contract_test.go` and `engine/firstmatch/contract_test.go` for the wiring template -- both files are deliberately near-identical.
 
 ## Reporting issues
