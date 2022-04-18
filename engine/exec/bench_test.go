@@ -1,6 +1,7 @@
 package exec_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine/exec"
@@ -18,7 +19,7 @@ func BenchmarkExecutorWrapperOverhead(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, _, err := ex.Execute(42); err != nil {
+		if _, _, err := ex.Execute(context.Background(), 42); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}

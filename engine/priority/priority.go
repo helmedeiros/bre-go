@@ -5,6 +5,7 @@
 package priority
 
 import (
+	"context"
 	"sort"
 	"time"
 
@@ -16,13 +17,19 @@ import (
 // Higher Priority evaluates first; ties break by insertion order.
 // Description and Tags are optional metadata surfaced through
 // engine.RuleInfoLister; they have no effect on Execute.
+//
+// Condition and Action are the narrow signatures; ConditionContext
+// and ActionContext are context-aware variants. When the *Context
+// variant is set, Execute prefers it.
 type Rule struct {
-	Name        string
-	Priority    int
-	Description string
-	Tags        []string
-	Condition   func(input interface{}) bool
-	Action      func(input interface{}) interface{}
+	Name             string
+	Priority         int
+	Description      string
+	Tags             []string
+	Condition        func(input interface{}) bool
+	ConditionContext func(ctx context.Context, input interface{}) bool
+	Action           func(input interface{}) interface{}
+	ActionContext    func(ctx context.Context, input interface{}) interface{}
 }
 
 // New returns an empty engine.
@@ -38,13 +45,14 @@ type Engine struct {
 }
 
 // AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty,
-// ErrNilCondition when r.Condition is nil, or ErrDuplicateRuleName when
-// r.Name is already registered. Checks run shape-first, state-second.
+// ErrNilCondition when both Condition and ConditionContext are nil,
+// or ErrDuplicateRuleName when r.Name is already registered. Checks
+// run shape-first, state-second.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
 	}
-	if r.Condition == nil {
+	if r.Condition == nil && r.ConditionContext == nil {
 		return ErrNilCondition
 	}
 	for _, existing := range e.rules {
@@ -105,17 +113,28 @@ func copyTags(tags []string) []string {
 // rule's Action panics, the panic is recovered and surfaced as an
 // *ActionPanicError; the rule still appears in Result.Matched. If no
 // rule matches, returns an empty Result.
-func (e *Engine) Execute(req engine.Request) (engine.Result, error) {
+//
+// ctx governs cancellation; ctx.Err() is checked before the rule loop
+// and between rules. A nil ctx is treated as context.Background().
+func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	start := time.Now()
 	e.notifyStarted(req.Input)
 
 	for _, r := range e.evaluationOrder() {
-		if !r.Condition(req.Input) {
+		if err := ctx.Err(); err != nil {
+			e.notifyErrored(req.Input, err)
+			e.notifyFinished(req.Input, nil, nil, time.Since(start))
+			return engine.Result{}, err
+		}
+		if !evaluateCondition(ctx, r, req.Input) {
 			continue
 		}
 		out := engine.Result{Matched: []string{r.Name}}
-		if r.Action != nil {
-			output, panicErr := runAction(r.Name, r.Action, req.Input)
+		if hasAction(r) {
+			output, panicErr := runAction(ctx, r, req.Input)
 			if panicErr != nil {
 				e.notifyErrored(req.Input, panicErr)
 				e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
@@ -143,13 +162,29 @@ func (e *Engine) evaluationOrder() []Rule {
 	return ordered
 }
 
-func runAction(name string, action func(interface{}) interface{}, input interface{}) (output interface{}, err error) {
+func evaluateCondition(ctx context.Context, r Rule, input interface{}) bool {
+	if r.ConditionContext != nil {
+		return r.ConditionContext(ctx, input)
+	}
+	// AddRule guarantees at least one of ConditionContext / Condition is set.
+	return r.Condition(input)
+}
+
+func hasAction(r Rule) bool {
+	return r.Action != nil || r.ActionContext != nil
+}
+
+func runAction(ctx context.Context, r Rule, input interface{}) (output interface{}, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			err = &ActionPanicError{Rule: name, Value: r}
+		if rec := recover(); rec != nil {
+			err = &ActionPanicError{Rule: r.Name, Value: rec}
 		}
 	}()
-	output = action(input)
+	if r.ActionContext != nil {
+		output = r.ActionContext(ctx, input)
+	} else {
+		output = r.Action(input)
+	}
 	return output, nil
 }
 

@@ -3,6 +3,7 @@
 package enginetest
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -22,7 +23,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 
 	t.Run("empty engine produces empty result", func(t *testing.T) {
 		eng, _ := factory(t)
-		got, err := eng.Execute(engine.Request{Input: "anything"})
+		got, err := eng.Execute(context.Background(), engine.Request{Input: "anything"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -39,7 +40,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Request{Input: "x"})
+		got, err := eng.Execute(context.Background(), engine.Request{Input: "x"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -53,7 +54,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err := seed("never", func(interface{}) bool { return false }, nil); err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Request{Input: "x"})
+		got, err := eng.Execute(context.Background(), engine.Request{Input: "x"})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -71,7 +72,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err != nil {
 			t.Skipf("adapter does not support action rules: %v", err)
 		}
-		got, err := eng.Execute(engine.Request{Input: 42})
+		got, err := eng.Execute(context.Background(), engine.Request{Input: 42})
 		if err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
@@ -102,14 +103,14 @@ func RunContractTests(t *testing.T, factory Factory) {
 		if err != nil {
 			t.Skipf("adapter does not support condition-only rules: %v", err)
 		}
-		gotApple, errApple := eng.Execute(engine.Request{Input: "apple"})
+		gotApple, errApple := eng.Execute(context.Background(), engine.Request{Input: "apple"})
 		if errApple != nil {
 			t.Fatalf("Execute(apple): unexpected error: %v", errApple)
 		}
 		if len(gotApple.Matched) != 1 {
 			t.Fatalf("apple: want one match, got %v", gotApple.Matched)
 		}
-		gotBanana, errBanana := eng.Execute(engine.Request{Input: "banana"})
+		gotBanana, errBanana := eng.Execute(context.Background(), engine.Request{Input: "banana"})
 		if errBanana != nil {
 			t.Fatalf("Execute(banana): unexpected error: %v", errBanana)
 		}
@@ -129,7 +130,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 		counter := &observability.CountingListener{}
 		host.AddListener(counter)
-		if _, err := eng.Execute(engine.Request{Input: "x"}); err != nil {
+		if _, err := eng.Execute(context.Background(), engine.Request{Input: "x"}); err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
 		if counter.Total() == 0 {
@@ -148,7 +149,7 @@ func RunContractTests(t *testing.T, factory Factory) {
 		}
 		rec := &observability.SnapshotListener{}
 		host.AddListener(rec)
-		if _, err := eng.Execute(engine.Request{Input: "x"}); err != nil {
+		if _, err := eng.Execute(context.Background(), engine.Request{Input: "x"}); err != nil {
 			t.Fatalf("Execute: unexpected error: %v", err)
 		}
 		if len(rec.Started) != 1 {
@@ -205,13 +206,28 @@ func RunContractTests(t *testing.T, factory Factory) {
 		rec := &observability.SnapshotListener{}
 		host.AddListener(rec)
 
-		_, execErr := eng.Execute(engine.Request{Input: "x"})
+		_, execErr := eng.Execute(context.Background(), engine.Request{Input: "x"})
 
 		if execErr == nil {
 			t.Fatalf("Execute: want non-nil error from a panicking action, got nil")
 		}
 		if len(rec.Errored) != 1 {
 			t.Fatalf("OnExecutionErrored: want 1 call, got %d", len(rec.Errored))
+		}
+	})
+
+	t.Run("a canceled context produces a non-nil error from Execute", func(t *testing.T) {
+		eng, seed := factory(t)
+		if err := seed("always", func(interface{}) bool { return true }, nil); err != nil {
+			t.Skipf("adapter does not support condition-only rules: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := eng.Execute(ctx, engine.Request{Input: "x"})
+
+		if err == nil {
+			t.Fatalf("Execute: want non-nil error on canceled context, got nil")
 		}
 	})
 }

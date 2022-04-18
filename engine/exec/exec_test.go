@@ -1,6 +1,7 @@
 package exec_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestExecuteReturnsTheTypedOutputOnMatch(t *testing.T) {
 	})
 	ex := exec.New[string, string](eng)
 
-	out, _, err := ex.Execute("alpha")
+	out, _, err := ex.Execute(context.Background(), "alpha")
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
@@ -41,7 +42,7 @@ func TestExecuteReportsMatchedRuleNames(t *testing.T) {
 	eng := newStringEngine(t, func(interface{}) interface{} { return "x" })
 	ex := exec.New[string, string](eng)
 
-	_, matched, _ := ex.Execute("alpha")
+	_, matched, _ := ex.Execute(context.Background(), "alpha")
 
 	if len(matched) != 1 || matched[0] != "always" {
 		t.Fatalf("Matched: want [always], got %v", matched)
@@ -56,7 +57,7 @@ func TestExecuteReturnsZeroOutWhenNothingMatches(t *testing.T) {
 	})
 	ex := exec.New[string, int](e)
 
-	out, _, err := ex.Execute("alpha")
+	out, _, err := ex.Execute(context.Background(), "alpha")
 
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
@@ -70,7 +71,7 @@ func TestExecuteReturnsTypeMismatchErrorWhenOutputIsWrongType(t *testing.T) {
 	eng := newStringEngine(t, func(interface{}) interface{} { return 42 }) // engine emits int
 	ex := exec.New[string, string](eng)                                    // executor expects string
 
-	_, _, err := ex.Execute("alpha")
+	_, _, err := ex.Execute(context.Background(), "alpha")
 
 	var mismatch *exec.OutputTypeMismatchError
 	if !errors.As(err, &mismatch) {
@@ -92,7 +93,7 @@ func TestExecutePropagatesEngineErrors(t *testing.T) {
 	eng := newStringEngine(t, func(interface{}) interface{} { panic("boom") })
 	ex := exec.New[string, string](eng)
 
-	_, _, err := ex.Execute("alpha")
+	_, _, err := ex.Execute(context.Background(), "alpha")
 
 	if err == nil {
 		t.Fatalf("Execute err: want non-nil from panicking action, got nil")

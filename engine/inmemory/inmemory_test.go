@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestNewReturnsAnEngine(t *testing.T) {
 func TestEmptyEngineProducesNoOutput(t *testing.T) {
 	e := inmemory.New()
 
-	got, err := e.Execute(engine.Request{Input: "anything"})
+	got, err := e.Execute(context.Background(), engine.Request{Input: "anything"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
@@ -27,7 +28,7 @@ func TestEmptyEngineProducesNoOutput(t *testing.T) {
 func TestEmptyEngineMatchesNothing(t *testing.T) {
 	e := inmemory.New()
 
-	got, err := e.Execute(engine.Request{Input: "anything"})
+	got, err := e.Execute(context.Background(), engine.Request{Input: "anything"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
@@ -269,7 +270,7 @@ func newEngineWithRule(t *testing.T, r inmemory.Rule) *inmemory.Engine {
 
 func execute(t *testing.T, e *inmemory.Engine, input interface{}) engine.Result {
 	t.Helper()
-	got, err := e.Execute(engine.Request{Input: input})
+	got, err := e.Execute(context.Background(), engine.Request{Input: input})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package exec_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine/exec"
@@ -21,7 +22,7 @@ func ExampleExecutor() {
 	})
 
 	ex := exec.New[order, string](e)
-	decision, matched, _ := ex.Execute(order{amount: 250, currency: "USD"})
+	decision, matched, _ := ex.Execute(context.Background(), order{amount: 250, currency: "USD"})
 
 	fmt.Println(matched, decision)
 	// Output: [high-value-usd] approve

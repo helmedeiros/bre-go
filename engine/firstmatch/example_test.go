@@ -1,6 +1,7 @@
 package firstmatch_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -25,7 +26,7 @@ func ExampleEngine() {
 		Action:    func(interface{}) interface{} { return "default-tier" },
 	})
 
-	res, _ := e.Execute(engine.Request{Input: 250})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: 250})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [standard] standard-tier

@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -16,7 +17,7 @@ func ExampleEngine() {
 		Action:    func(in interface{}) interface{} { return "adult" },
 	})
 
-	res, _ := e.Execute(engine.Request{Input: 21})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: 21})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [is-adult] adult
@@ -36,7 +37,7 @@ func ExampleEngine_AddListener() {
 		Condition: func(interface{}) bool { return true },
 	})
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 	// Output: matched always
 }
 

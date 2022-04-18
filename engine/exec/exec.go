@@ -7,6 +7,7 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -28,10 +29,11 @@ func New[In, Out any](inner engine.Engine) *Executor[In, Out] {
 // Execute hands in to the underlying engine and casts the resulting
 // Output to Out. Returns the zero value of Out when no rule produced
 // an Output. Returns an *OutputTypeMismatchError when Output is set
-// but not assignable to Out.
-func (e *Executor[In, Out]) Execute(in In) (Out, []string, error) {
+// but not assignable to Out. ctx is propagated to the underlying
+// engine.
+func (e *Executor[In, Out]) Execute(ctx context.Context, in In) (Out, []string, error) {
 	var zero Out
-	res, err := e.inner.Execute(engine.Request{Input: in})
+	res, err := e.inner.Execute(ctx, engine.Request{Input: in})
 	if err != nil {
 		return zero, res.Matched, err
 	}

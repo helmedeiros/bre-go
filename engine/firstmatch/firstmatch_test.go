@@ -1,6 +1,7 @@
 package firstmatch_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestNewReturnsAnEngine(t *testing.T) {
 func TestEmptyEngineProducesNoOutput(t *testing.T) {
 	e := firstmatch.New()
 
-	got, err := e.Execute(engine.Request{Input: "anything"})
+	got, err := e.Execute(context.Background(), engine.Request{Input: "anything"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}
@@ -27,7 +28,7 @@ func TestEmptyEngineProducesNoOutput(t *testing.T) {
 func TestEmptyEngineMatchesNothing(t *testing.T) {
 	e := firstmatch.New()
 
-	got, _ := e.Execute(engine.Request{Input: "anything"})
+	got, _ := e.Execute(context.Background(), engine.Request{Input: "anything"})
 
 	if len(got.Matched) != 0 {
 		t.Fatalf("Matched: want empty, got %v", got.Matched)
@@ -172,7 +173,7 @@ func newEngine(t *testing.T, rules ...firstmatch.Rule) *firstmatch.Engine {
 
 func execute(t *testing.T, e *firstmatch.Engine) engine.Result {
 	t.Helper()
-	got, err := e.Execute(engine.Request{Input: "x"})
+	got, err := e.Execute(context.Background(), engine.Request{Input: "x"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -10,11 +11,12 @@ import (
 
 func BenchmarkExecuteOverTenRules(b *testing.B) {
 	e := tenRuleEngine()
+	ctx := context.Background()
 	req := engine.Request{Input: 5}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}
@@ -27,11 +29,12 @@ func BenchmarkExecuteRecoveryOverhead(b *testing.B) {
 		Condition: func(interface{}) bool { return true },
 		Action:    func(in interface{}) interface{} { return in },
 	})
+	ctx := context.Background()
 	req := engine.Request{Input: 5}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}
@@ -40,11 +43,12 @@ func BenchmarkExecuteRecoveryOverhead(b *testing.B) {
 func BenchmarkExecuteWithListenerOverTenRules(b *testing.B) {
 	e := tenRuleEngine()
 	e.AddListener(observability.NopExecutionListener{})
+	ctx := context.Background()
 	req := engine.Request{Input: 5}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}

@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -31,7 +32,7 @@ func TestExecuteFiresEveryListenerInACompositeWiring(t *testing.T) {
 	e.AddListener(timing)
 	e.AddListener(logging)
 
-	_, _ = e.Execute(engine.Request{Input: 1})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 1})
 
 	if counter.Total() != 1 {
 		t.Fatalf("counter.Total: want 1, got %d", counter.Total())
@@ -63,7 +64,7 @@ func TestCompositeWiringSurvivesARuleSetWithTwoMatchingRules(t *testing.T) {
 	e.AddListener(counter)
 	e.AddListener(timing)
 
-	_, _ = e.Execute(engine.Request{Input: 1})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 1})
 
 	if counter.Total() != 2 {
 		t.Fatalf("counter.Total: want 2, got %d", counter.Total())

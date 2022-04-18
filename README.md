@@ -36,6 +36,7 @@ What may still change:
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine/conditions"
@@ -69,7 +70,7 @@ func main() {
 
 	// Wrap the engine for typed input/output; underlying adapter unchanged.
 	ex := exec.New[Order, string](e)
-	decision, matched, _ := ex.Execute(Order{Amount: 250, Currency: "USD"})
+	decision, matched, _ := ex.Execute(context.Background(), Order{Amount: 250, Currency: "USD"})
 
 	fmt.Println(matched, decision, counter.Total())
 	// Output: [high-value-clean-usd] approve 1

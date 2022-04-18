@@ -1,6 +1,7 @@
 package priority_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -166,7 +167,7 @@ func TestRuleNamesReturnsInsertionOrder(t *testing.T) {
 
 func execute(t *testing.T, e *priority.Engine) engine.Result {
 	t.Helper()
-	got, err := e.Execute(engine.Request{Input: "x"})
+	got, err := e.Execute(context.Background(), engine.Request{Input: "x"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error: %v", err)
 	}

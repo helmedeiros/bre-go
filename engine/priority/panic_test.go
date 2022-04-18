@@ -1,6 +1,7 @@
 package priority_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestExecuteRecoversFromPanickingAction(t *testing.T) {
 			t.Fatalf("panic leaked from Execute: %v", r)
 		}
 	}()
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 }
 
 func TestExecuteReturnsActionPanicError(t *testing.T) {
@@ -33,7 +34,7 @@ func TestExecuteReturnsActionPanicError(t *testing.T) {
 		Action:    func(interface{}) interface{} { panic("kaboom") },
 	})
 
-	_, err := e.Execute(engine.Request{Input: nil})
+	_, err := e.Execute(context.Background(), engine.Request{Input: nil})
 
 	var pe *priority.ActionPanicError
 	if !errors.As(err, &pe) {
@@ -49,7 +50,7 @@ func TestActionPanicErrorCarriesTheRuleName(t *testing.T) {
 		Action:    func(interface{}) interface{} { panic("kaboom") },
 	})
 
-	_, err := e.Execute(engine.Request{Input: nil})
+	_, err := e.Execute(context.Background(), engine.Request{Input: nil})
 
 	var pe *priority.ActionPanicError
 	_ = errors.As(err, &pe)

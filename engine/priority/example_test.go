@@ -1,6 +1,7 @@
 package priority_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -29,7 +30,7 @@ func ExampleEngine() {
 		Action:    func(interface{}) interface{} { return "denied" },
 	})
 
-	res, _ := e.Execute(engine.Request{Input: "vip-token"})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: "vip-token"})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [vip] vip-tier

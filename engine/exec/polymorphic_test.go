@@ -1,6 +1,7 @@
 package exec_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -23,7 +24,7 @@ func TestExecutorWrapsEveryAdapter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ex := exec.New[int, string](tc.seed(t))
 
-			out, matched, err := ex.Execute(42)
+			out, matched, err := ex.Execute(context.Background(), 42)
 			if err != nil {
 				t.Fatalf("Execute: unexpected error: %v", err)
 			}

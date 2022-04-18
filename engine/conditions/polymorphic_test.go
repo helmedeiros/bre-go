@@ -1,6 +1,7 @@
 package conditions_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -26,7 +27,7 @@ func TestCombinatorsDropIntoEveryAdapter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			eng := tc.seed(t, cond)
 
-			res, err := eng.Execute(engine.Request{Input: "anything"})
+			res, err := eng.Execute(context.Background(), engine.Request{Input: "anything"})
 			if err != nil {
 				t.Fatalf("Execute: unexpected error: %v", err)
 			}

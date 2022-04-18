@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestExecuteFiresOnExecutionStartedOnce(t *testing.T) {
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(rec.started) != 1 {
 		t.Fatalf("started: want 1 event, got %d", len(rec.started))
@@ -51,7 +52,7 @@ func TestExecuteFiresOnExecutionFinishedOnce(t *testing.T) {
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(rec.finished) != 1 {
 		t.Fatalf("finished: want 1 event, got %d", len(rec.finished))
@@ -63,7 +64,7 @@ func TestExecutionStartedReceivesTheRequestInput(t *testing.T) {
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: "hello"})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: "hello"})
 
 	if rec.started[0] != "hello" {
 		t.Fatalf("started[0]: want %q, got %v", "hello", rec.started[0])
@@ -75,7 +76,7 @@ func TestExecutionFinishedReceivesTheMatchedNames(t *testing.T) {
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(rec.finished[0].matched) != 1 || rec.finished[0].matched[0] != "alpha" {
 		t.Fatalf("finished[0].matched: want [alpha], got %v", rec.finished[0].matched)
@@ -87,7 +88,7 @@ func TestExecutionFinishedReportsANonZeroDuration(t *testing.T) {
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if rec.finished[0].duration < 0 {
 		t.Fatalf("finished[0].duration: want >= 0, got %v", rec.finished[0].duration)
@@ -99,7 +100,7 @@ func TestExecutionLifecycleAcceptsAListenerWithoutLifecycleMethods(t *testing.T)
 	e := engineWithMatchingRule(t, inmemory.New(), "alpha")
 	e.AddListener(plain)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(plain.matches) != 1 {
 		t.Fatalf("plain listener: want 1 match, got %d", len(plain.matches))

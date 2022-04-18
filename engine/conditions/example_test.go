@@ -1,6 +1,7 @@
 package conditions_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -38,7 +39,7 @@ func ExampleAnd() {
 	})
 
 	clean := order{amount: 250, currency: "USD", flagged: false}
-	res, _ := e.Execute(engine.Request{Input: clean})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: clean})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [high-value-clean-usd] approve
@@ -56,7 +57,7 @@ func ExampleOr() {
 		Action: func(interface{}) interface{} { return "supported" },
 	})
 
-	res, _ := e.Execute(engine.Request{Input: order{currency: "EUR"}})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: order{currency: "EUR"}})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [any-major-currency] supported
@@ -75,7 +76,7 @@ func ExampleAlways() {
 		Action:    func(interface{}) interface{} { return "default-tier" },
 	})
 
-	res, _ := e.Execute(engine.Request{Input: order{amount: 50}})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: order{amount: 50}})
 
 	fmt.Println(res.Matched, res.Output)
 	// Output: [default] default-tier

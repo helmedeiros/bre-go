@@ -1,6 +1,7 @@
 package firstmatch_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -39,14 +40,14 @@ func TestExecuteRecoversFromPanickingAction(t *testing.T) {
 			t.Fatalf("panic leaked from Execute: %v", r)
 		}
 	}()
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 }
 
 func TestExecuteReturnsActionPanicError(t *testing.T) {
 	e := firstmatch.New()
 	_ = e.AddRule(panickingRule("boom", "kaboom"))
 
-	_, err := e.Execute(engine.Request{Input: nil})
+	_, err := e.Execute(context.Background(), engine.Request{Input: nil})
 
 	var pe *firstmatch.ActionPanicError
 	if !errors.As(err, &pe) {
@@ -58,7 +59,7 @@ func TestActionPanicErrorCarriesTheRuleName(t *testing.T) {
 	e := firstmatch.New()
 	_ = e.AddRule(panickingRule("boom", "kaboom"))
 
-	_, err := e.Execute(engine.Request{Input: nil})
+	_, err := e.Execute(context.Background(), engine.Request{Input: nil})
 
 	var pe *firstmatch.ActionPanicError
 	_ = errors.As(err, &pe)
@@ -71,7 +72,7 @@ func TestExecuteIncludesPanickingRuleInMatched(t *testing.T) {
 	e := firstmatch.New()
 	_ = e.AddRule(panickingRule("the-one", "different-value"))
 
-	res, _ := e.Execute(engine.Request{Input: nil})
+	res, _ := e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if len(res.Matched) != 1 || res.Matched[0] != "the-one" {
 		t.Fatalf("Matched: want [the-one], got %v", res.Matched)
@@ -84,7 +85,7 @@ func TestExecuteDoesNotFireOnRuleMatchedForPanickingRule(t *testing.T) {
 	_ = e.AddRule(panickingRule("boom", "kaboom"))
 	e.AddListener(counter)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if counter.Total() != 0 {
 		t.Fatalf("CountingListener.Total: want 0 for panicking rule, got %d", counter.Total())
@@ -107,7 +108,7 @@ func TestExecuteFiresOnExecutionFinishedEvenOnPanic(t *testing.T) {
 	_ = e.AddRule(panickingRule("boom", "kaboom"))
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if len(rec.errors) != 1 {
 		t.Fatalf("OnExecutionErrored: want 1 call, got %d", len(rec.errors))

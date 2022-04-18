@@ -1,6 +1,7 @@
 package priority_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -42,7 +43,7 @@ func TestExecuteFiresOnRuleMatchedForTheHighestPriorityRule(t *testing.T) {
 	})
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if len(rec.matches) != 1 {
 		t.Fatalf("matches: want 1, got %d", len(rec.matches))
@@ -64,7 +65,7 @@ func TestExecuteListenerSeesTheHighestPriorityMatch(t *testing.T) {
 	})
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if rec.matches[0].Rule != "high" {
 		t.Fatalf("matches[0].Rule: want %q, got %q", "high", rec.matches[0].Rule)
@@ -82,7 +83,7 @@ func TestExecuteFiresForEveryRegisteredListener(t *testing.T) {
 	e.AddListener(first)
 	e.AddListener(second)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if len(second.matches) != 1 {
 		t.Fatalf("second listener: want 1 match, got %d", len(second.matches))
@@ -99,7 +100,7 @@ func TestExecuteFiresNoEventWhenNothingMatches(t *testing.T) {
 	})
 	e.AddListener(rec)
 
-	_, _ = e.Execute(engine.Request{Input: nil})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: nil})
 
 	if len(rec.matches) != 0 {
 		t.Fatalf("matches: want 0, got %d", len(rec.matches))

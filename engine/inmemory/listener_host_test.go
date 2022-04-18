@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -24,7 +25,7 @@ func TestListenerHostAssertionAllowsListenerRegistration(t *testing.T) {
 	counter := &observability.CountingListener{}
 	host.AddListener(counter)
 	_ = engineWithMatchingRule(t, eng.(*inmemory.Engine), "fire")
-	_, _ = eng.Execute(engine.Request{Input: "x"})
+	_, _ = eng.Execute(context.Background(), engine.Request{Input: "x"})
 
 	if counter.Total() != 1 {
 		t.Fatalf("counter total: want 1, got %d", counter.Total())

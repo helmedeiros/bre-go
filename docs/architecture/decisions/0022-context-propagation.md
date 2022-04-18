@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.2.0`. Transitions to **Accepted** in the commit that lands the implementation. This will be the first breaking change to the engine port since ADR-0003 declared it, and the first minor-version bump under ADR-0021's SemVer policy.
+Accepted — landed in v0.2.0. First breaking change to the engine port since ADR-0003 declared it, and the first minor-version bump under ADR-0021's SemVer policy.
 
 ## Context
 

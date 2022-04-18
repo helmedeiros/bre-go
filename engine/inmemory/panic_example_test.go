@@ -1,6 +1,7 @@
 package inmemory_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -19,7 +20,7 @@ func ExampleActionPanicError() {
 		},
 	})
 
-	_, err := e.Execute(engine.Request{Input: 0})
+	_, err := e.Execute(context.Background(), engine.Request{Input: 0})
 
 	var pe *inmemory.ActionPanicError
 	if errors.As(err, &pe) {

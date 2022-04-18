@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -23,7 +24,7 @@ func TestEverySeededAdapterExecutesUnderThePort(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			eng := tc.seed(t)
 
-			res, err := eng.Execute(engine.Request{Input: "anything"})
+			res, err := eng.Execute(context.Background(), engine.Request{Input: "anything"})
 			if err != nil {
 				t.Fatalf("Execute: unexpected error: %v", err)
 			}
@@ -53,7 +54,7 @@ func TestEveryListenerHostFiresThroughTheTypeAssertion(t *testing.T) {
 			counter := &observability.CountingListener{}
 			host.AddListener(counter)
 
-			_, _ = eng.Execute(engine.Request{Input: "anything"})
+			_, _ = eng.Execute(context.Background(), engine.Request{Input: "anything"})
 
 			if counter.Total() == 0 {
 				t.Fatalf("counter.Total: want > 0, got 0")
@@ -106,7 +107,7 @@ func TestEveryAdapterRecoversFromPanickingActions(t *testing.T) {
 					t.Fatalf("panic leaked from Execute: %v", r)
 				}
 			}()
-			_, err := eng.Execute(engine.Request{Input: nil})
+			_, err := eng.Execute(context.Background(), engine.Request{Input: nil})
 
 			if err == nil {
 				t.Fatalf("Execute: want non-nil error from panicking action, got nil")

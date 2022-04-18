@@ -1,6 +1,7 @@
 package firstmatch_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -10,11 +11,12 @@ import (
 
 func BenchmarkExecuteFirstRuleMatches(b *testing.B) {
 	e := tenRuleEngine(b)
+	ctx := context.Background()
 	req := engine.Request{Input: 0}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}
@@ -22,11 +24,12 @@ func BenchmarkExecuteFirstRuleMatches(b *testing.B) {
 
 func BenchmarkExecuteLastRuleMatches(b *testing.B) {
 	e := tenRuleEngine(b)
+	ctx := context.Background()
 	req := engine.Request{Input: 9}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}
@@ -35,11 +38,12 @@ func BenchmarkExecuteLastRuleMatches(b *testing.B) {
 func BenchmarkExecuteWithListener(b *testing.B) {
 	e := tenRuleEngine(b)
 	e.AddListener(observability.NopExecutionListener{})
+	ctx := context.Background()
 	req := engine.Request{Input: 0}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}

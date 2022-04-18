@@ -1,6 +1,7 @@
 package priority_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -9,11 +10,12 @@ import (
 
 func BenchmarkExecuteHighestPriorityMatchesOverTenRules(b *testing.B) {
 	e := tenRuleEngine(b, true)
+	ctx := context.Background()
 	req := engine.Request{Input: 9}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}
@@ -21,11 +23,12 @@ func BenchmarkExecuteHighestPriorityMatchesOverTenRules(b *testing.B) {
 
 func BenchmarkExecuteLowestPriorityMatchesOverTenRules(b *testing.B) {
 	e := tenRuleEngine(b, false)
+	ctx := context.Background()
 	req := engine.Request{Input: 0}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.Execute(req); err != nil {
+		if _, err := e.Execute(ctx, req); err != nil {
 			b.Fatalf("Execute: unexpected error: %v", err)
 		}
 	}

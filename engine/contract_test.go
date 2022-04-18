@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -14,6 +15,6 @@ func TestEnginePortIsDefined(t *testing.T) {
 
 type nilEngine struct{}
 
-func (nilEngine) Execute(engine.Request) (engine.Result, error) {
+func (nilEngine) Execute(context.Context, engine.Request) (engine.Result, error) {
 	return engine.Result{}, nil
 }

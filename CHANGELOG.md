@@ -7,16 +7,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - planned 2022-04-22
+
+First minor release post-v0.1.0. Headline change: `context.Context` flows through `Execute` (breaking).
+
 ### Added
 
 - `observability.SnapshotListener`: sixth built-in. Implements all four listener interfaces (`ExecutionListener`, `ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`) in one type. Captures every event into public slices (`Matches`, `Started`, `Finished`, `Errored`) for later assertion. Designed primarily for tests; benchmarked against `NopExecutionListener` so the production trade-off is visible. `Reset()` enables reuse across executions in one test.
-- Internal: contract suite's `lifecycleRecorder` and `erroredRecorder` types replaced by `SnapshotListener` (dogfood -- the new built-in is the canonical recorder pattern).
+- Optional `ConditionContext` and `ActionContext` fields on every adapter's `Rule` struct. The context-aware variants are preferred over the narrow `Condition`/`Action` when set; the narrow variants stay backward-compatible.
+- `engine/enginetest.RunContractTests` gains a 12th case: a cancelled context produces a non-nil error from `Execute`.
+
+### Changed
+
+- **BREAKING**: `engine.Engine.Execute` now takes `(ctx context.Context, req Request)`. Every existing call site updates. Cancelled contexts produce `OnExecutionErrored` and a non-nil return; `OnExecutionFinished` still fires to keep the lifecycle pair balanced.
+- **BREAKING**: `engine/exec.Executor[In, Out].Execute` now takes `(ctx context.Context, in In)`. Same shape as the underlying port.
+- `AddRule`'s `ErrNilCondition` now triggers only when **both** `Condition` and `ConditionContext` are nil. Rules that set either compile.
+- Contract suite + polymorphic tests + every adapter test + the README Quickstart updated to thread `context.Background()` (or a real ctx) through `Execute`.
+
+### Internal
+
+- Contract suite's `lifecycleRecorder` and `erroredRecorder` types replaced by `SnapshotListener` (dogfood -- the new built-in is the canonical recorder pattern).
 - CONTRIBUTING adapter recipe points new test authors at `SnapshotListener` rather than hand-rolling per-test recorders.
 - Godoc example + integration tests verify `SnapshotListener` captures events end-to-end against `inmemory.Engine`, including the panic path where `Errored` carries the typed `*ActionPanicError`.
-
-### Planned (Proposed ADRs)
-
-- [ADR-0022](docs/architecture/decisions/0022-context-propagation.md): propagate `context.Context` through `Execute`. First v0.2.0 breaking change. Status: 📝 Proposed.
 
 ## [0.1.0] - 2022-04-07
 

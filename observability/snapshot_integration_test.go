@@ -1,6 +1,7 @@
 package observability_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestSnapshotListenerCapturesEveryLifecycleEventOnInmemory(t *testing.T) {
 	})
 	e.AddListener(snap)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(snap.Started) != 1 {
 		t.Fatalf("Started: want 1 event, got %d", len(snap.Started))
@@ -45,7 +46,7 @@ func TestSnapshotListenerCapturesPanicAsErrored(t *testing.T) {
 	})
 	e.AddListener(snap)
 
-	_, _ = e.Execute(engine.Request{Input: 42})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 42})
 
 	if len(snap.Errored) != 1 {
 		t.Fatalf("Errored: want 1 event after panic, got %d", len(snap.Errored))
@@ -70,9 +71,9 @@ func TestSnapshotListenerResetEnablesReuse(t *testing.T) {
 	})
 	e.AddListener(snap)
 
-	_, _ = e.Execute(engine.Request{Input: 1})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 1})
 	snap.Reset()
-	_, _ = e.Execute(engine.Request{Input: 2})
+	_, _ = e.Execute(context.Background(), engine.Request{Input: 2})
 
 	if len(snap.Started) != 1 || len(snap.Matches) != 1 || len(snap.Finished) != 1 {
 		t.Fatalf("post-Reset capture: Started=%d Matches=%d Finished=%d",
