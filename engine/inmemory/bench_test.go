@@ -22,6 +22,20 @@ func BenchmarkExecuteOverTenRules(b *testing.B) {
 	}
 }
 
+func BenchmarkExecuteWithCancellableContext(b *testing.B) {
+	e := tenRuleEngine()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := engine.Request{Input: 5}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := e.Execute(ctx, req); err != nil {
+			b.Fatalf("Execute: unexpected error: %v", err)
+		}
+	}
+}
+
 func BenchmarkExecuteRecoveryOverhead(b *testing.B) {
 	e := inmemory.New()
 	_ = e.AddRule(inmemory.Rule{
