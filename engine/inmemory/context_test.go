@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/engine/inmemory"
@@ -122,6 +123,22 @@ func TestAddRuleRejectsBothConditionAndConditionContextNil(t *testing.T) {
 
 	if !errors.Is(err, inmemory.ErrNilCondition) {
 		t.Fatalf("AddRule: want ErrNilCondition, got %v", err)
+	}
+}
+
+func TestExecuteReturnsDeadlineExceededOnExpiredContext(t *testing.T) {
+	e := inmemory.New()
+	_ = e.AddRule(inmemory.Rule{
+		Name:      "alpha",
+		Condition: func(interface{}) bool { return true },
+	})
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	_, err := e.Execute(ctx, engine.Request{Input: 42})
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Execute err: want context.DeadlineExceeded, got %v", err)
 	}
 }
 
