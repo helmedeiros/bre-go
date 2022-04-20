@@ -8,11 +8,27 @@ The public API is backend-agnostic. Today it ships with two small in-process eng
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.1.0` -- first tagged release. Three concrete adapters, six public packages, twenty-one Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but will land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.2.0` -- second minor release. Three concrete adapters, six public packages, twenty-two Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.1.0
+go get github.com/helmedeiros/bre-go@v0.2.0
 ```
+
+### Upgrading from v0.1.0
+
+`v0.2.0` is a breaking change: `engine.Engine.Execute` and `engine/exec.Executor.Execute` now take `context.Context` as their first parameter (ADR-0022). The migration is mechanical:
+
+```go
+// v0.1.0
+res, err := eng.Execute(engine.Request{Input: x})
+out, matched, err := ex.Execute(x)
+
+// v0.2.0
+res, err := eng.Execute(ctx, engine.Request{Input: x})
+out, matched, err := ex.Execute(ctx, x)
+```
+
+`Rule` structs gain optional `ConditionContext` and `ActionContext` fields; existing rule definitions compile unchanged.
 
 ## Stability
 
@@ -22,7 +38,8 @@ What you can build on today:
 - **Optional capability interfaces (`ListenerHost`, `RuleLister`, `RuleInfoLister`).** Stable. Adapters discover support through the standard Go type-assertion idiom.
 - **Adapter registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`).** Stable. Same sentinels, same shape-first-then-state-second check order on every adapter.
 - **Listener lifecycle (`OnRuleMatched`, `OnExecutionStarted`, `OnExecutionFinished`, `OnExecutionErrored`).** Stable. Per-execution `OnRuleMatched` fires for successful matches only; `OnExecutionErrored` carries the typed `ActionPanicError`.
-- **`engine/exec.Executor[In, Out]`.** Stable since Go 1.18 GA. Wraps any `engine.Engine`.
+- **`engine/exec.Executor[In, Out]`.** Stable since Go 1.18 GA. Wraps any `engine.Engine`. `Execute` takes `context.Context` since v0.2.0.
+- **`context.Context` propagation through `Execute`.** Stable since v0.2.0. A nil ctx is treated as `context.Background()` for test ergonomics; production code passes the real ctx.
 
 What may still change:
 
