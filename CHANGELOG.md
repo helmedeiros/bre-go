@@ -7,7 +7,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.2.0] - planned 2022-04-22
+## [0.2.0] - 2022-04-22
 
 First minor release post-v0.1.0. Headline change: `context.Context` flows through `Execute` (breaking).
 
