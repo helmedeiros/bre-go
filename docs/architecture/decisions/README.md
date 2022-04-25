@@ -48,3 +48,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0020](0020-rule-info-introspection.md) | RuleInfo Introspection Beyond Names | ✅ Accepted |
 | [0021](0021-release-versioning-policy.md) | Release Versioning Policy And Cutting v0.1.0 | ✅ Accepted |
 | [0022](0022-context-propagation.md) | Propagate context.Context Through Execute | ✅ Accepted (v0.2.0) |
+| [0023](0023-rule-config-provider.md) | RuleConfigProvider: Decouple Matchers From Loading | 📝 Proposed (target v0.3.0) |
