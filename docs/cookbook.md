@@ -12,6 +12,8 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Handle cancellation and timeouts](#handle-cancellation-and-timeouts)
   - [Compose multiple listeners on one engine](#compose-multiple-listeners-on-one-engine)
   - [Introspect at runtime](#introspect-at-runtime)
+  - [Handle errors from Execute](#handle-errors-from-execute)
+  - [Use the typed Executor](#use-the-typed-executor)
 
 ## Patterns
 
@@ -186,3 +188,70 @@ http.HandleFunc("/rules", func(w http.ResponseWriter, r *http.Request) {
 ```
 
 Both methods return fresh copies; the caller can mutate the returned slices (or `Tags` within them) without corrupting engine state.
+
+### Handle errors from Execute
+
+`Execute` returns three error categories. Use `errors.Is` for sentinel comparison, `errors.As` for typed errors carrying details:
+
+```go
+res, err := eng.Execute(ctx, engine.Request{Input: x})
+switch {
+case errors.Is(err, context.Canceled):
+    // caller cancelled the request
+case errors.Is(err, context.DeadlineExceeded):
+    // request timed out
+case isActionPanic(err):
+    // a rule's Action panicked; the rule name is in the typed error
+    var pe *inmemory.ActionPanicError
+    _ = errors.As(err, &pe)
+    log.Printf("rule %q action panicked: %v", pe.RuleName(), pe.Value)
+case err != nil:
+    // unexpected
+    log.Printf("execute: %v", err)
+}
+
+func isActionPanic(err error) bool {
+    var pe *inmemory.ActionPanicError
+    return errors.As(err, &pe)
+}
+```
+
+Note: each adapter has its own `ActionPanicError` type (`inmemory.ActionPanicError`, `firstmatch.ActionPanicError`, `priority.ActionPanicError`). They all expose `RuleName() string`, so callers that need to handle panics across adapters can define a small local interface:
+
+```go
+type ruleNamer interface{ RuleName() string }
+if rn, ok := err.(ruleNamer); ok {
+    log.Printf("rule %q failed", rn.RuleName())
+}
+```
+
+`Result.Matched` still contains the panicking rule's name -- the rule *did* match its condition; the action is what failed. `OnExecutionErrored` fires for the panicking rule; `OnRuleMatched` does not (the match event is reserved for successful Action completion).
+
+### Use the typed Executor
+
+`engine/exec.Executor[In, Out]` wraps any `engine.Engine` and hides the `interface{}` cast at the call boundary. The underlying adapter does not change:
+
+```go
+import "github.com/helmedeiros/bre-go/engine/exec"
+
+type Decision string
+type Order struct { Amount int; Currency string }
+
+eng := inmemory.New()
+// ... register rules whose Action returns Decision ...
+
+ex := exec.New[Order, Decision](eng)
+decision, matched, err := ex.Execute(ctx, Order{Amount: 250, Currency: "USD"})
+// decision is typed Decision -- no type assertion at the call site
+```
+
+If a rule's Action returns a value not assignable to `Out`, `Execute` returns an `*exec.OutputTypeMismatchError` carrying the expected and actual type names:
+
+```go
+var mismatch *exec.OutputTypeMismatchError
+if errors.As(err, &mismatch) {
+    log.Printf("expected %s, got %s", mismatch.Expected, mismatch.Got)
+}
+```
+
+When no rule matches (or no matching rule had an action), the zero value of `Out` is returned with a nil error -- "no decision" is not a mismatch.
