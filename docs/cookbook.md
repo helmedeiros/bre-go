@@ -10,6 +10,8 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Pick the right adapter](#pick-the-right-adapter)
   - [Compose conditions declaratively](#compose-conditions-declaratively)
   - [Handle cancellation and timeouts](#handle-cancellation-and-timeouts)
+  - [Compose multiple listeners on one engine](#compose-multiple-listeners-on-one-engine)
+  - [Introspect at runtime](#introspect-at-runtime)
 
 ## Patterns
 
@@ -110,3 +112,77 @@ _ = e.AddRule(inmemory.Rule{
 ```
 
 A nil ctx is treated as `context.Background()` for test ergonomics, but production callers should always pass a real ctx.
+
+### Compose multiple listeners on one engine
+
+Listeners stack -- one engine can have many. Each one observes its slice of the lifecycle.
+
+```go
+e := inmemory.New()
+
+counter := &observability.CountingListener{}                // per-rule hit counts
+timing  := &observability.TimingListener{}                  // duration of the last execute
+logger  := observability.NewLoggingListener(structuredLog)  // bridges to your Logger
+
+e.AddListener(counter)
+e.AddListener(timing)
+e.AddListener(logger)
+
+_, _ = e.Execute(ctx, engine.Request{Input: order})
+
+// After Execute:
+counter.Count("approve-fast")           // how many times this rule fired in total
+counter.Total()                          // total matches across all rules
+timing.LastDuration()                    // how long the last Execute took
+timing.MatchesInLastExecution()          // how many matches in the last Execute (resets on next Started)
+```
+
+Listeners discover their capabilities through type assertions at notify time, so a plain `ExecutionListener` (only `OnRuleMatched`) and a full four-method listener can coexist on the same engine without either knowing the other exists.
+
+For testing, `SnapshotListener` captures every lifecycle event for later assertion -- no need to hand-roll a recorder type:
+
+```go
+snap := &observability.SnapshotListener{}
+e.AddListener(snap)
+
+_, _ = e.Execute(ctx, engine.Request{Input: x})
+
+if len(snap.Matches) != 2     { t.Fatalf(...) }
+if snap.Finished[0].Duration  > deadline { t.Fatalf(...) }
+if len(snap.Errored) != 0     { t.Fatalf(...) }
+```
+
+### Introspect at runtime
+
+Adapters expose their rule set through two optional capability interfaces. Callers ask via type assertion -- the engine port itself does not require introspection.
+
+```go
+var eng engine.Engine = inmemory.New()
+// ... register rules ...
+
+// Just names (cheap):
+if lister, ok := eng.(engine.RuleLister); ok {
+    for _, name := range lister.RuleNames() {
+        log.Printf("rule registered: %s", name)
+    }
+}
+
+// Names + Description + Tags (richer; one allocation per rule):
+if lister, ok := eng.(engine.RuleInfoLister); ok {
+    for _, info := range lister.RuleInfos() {
+        log.Printf("%s [%s]: %s", info.Name, strings.Join(info.Tags, ","), info.Description)
+    }
+}
+```
+
+A `/rules` debug endpoint is two lines:
+
+```go
+http.HandleFunc("/rules", func(w http.ResponseWriter, r *http.Request) {
+    if lister, ok := eng.(engine.RuleInfoLister); ok {
+        _ = json.NewEncoder(w).Encode(lister.RuleInfos())
+    }
+})
+```
+
+Both methods return fresh copies; the caller can mutate the returned slices (or `Tags` within them) without corrupting engine state.
