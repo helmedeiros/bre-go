@@ -14,6 +14,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Introspect at runtime](#introspect-at-runtime)
   - [Handle errors from Execute](#handle-errors-from-execute)
   - [Use the typed Executor](#use-the-typed-executor)
+  - [Write adapter-agnostic helpers](#write-adapter-agnostic-helpers)
 
 ## Patterns
 
@@ -255,3 +256,53 @@ if errors.As(err, &mismatch) {
 ```
 
 When no rule matches (or no matching rule had an action), the zero value of `Out` is returned with a nil error -- "no decision" is not a mismatch.
+
+### Write adapter-agnostic helpers
+
+Code that accepts `engine.Engine` works with every shipped adapter (and any future one) without modification. This is the whole point of the port abstraction from ADR-0003.
+
+```go
+// Backend-agnostic helper. Works with inmemory, firstmatch, priority,
+// and any future adapter that satisfies engine.Engine.
+func evaluateAll(ctx context.Context, eng engine.Engine, inputs []Order) (approved, rejected int, err error) {
+    for _, in := range inputs {
+        res, ferr := eng.Execute(ctx, engine.Request{Input: in})
+        if ferr != nil {
+            return approved, rejected, ferr
+        }
+        if res.Output == "approve" {
+            approved++
+            continue
+        }
+        rejected++
+    }
+    return approved, rejected, nil
+}
+```
+
+To opt into optional capabilities, type-assert at call time:
+
+```go
+func describeEngine(eng engine.Engine) {
+    if lister, ok := eng.(engine.RuleInfoLister); ok {
+        log.Printf("loaded %d rule(s)", len(lister.RuleInfos()))
+    }
+    if _, ok := eng.(engine.ListenerHost); ok {
+        log.Printf("supports listeners")
+    }
+}
+```
+
+This pattern lets a caller wire a single `evaluateAll` once and ship code that:
+
+- Works with `engine/inmemory` for tests and dev.
+- Works with `engine/priority` once rules are loaded from a config file.
+- Will work with a future `engine/gorules` adapter when GoRules Zen ships -- no change to `evaluateAll`.
+
+If your helper needs a richer capability than the bare `engine.Engine` port provides, take the capability interface in the signature instead:
+
+```go
+func auditRuleSet(lister engine.RuleInfoLister) error { ... }
+```
+
+Callers pass the engine (it satisfies the interface implicitly via the type assertion the compiler does at the call site).

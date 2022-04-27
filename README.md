@@ -106,6 +106,8 @@ All three adapters share the same `Rule`-shape skeleton (`Name`, optional `Descr
 
 The same `enginetest.RunContractTests` suite runs against all three -- port-level behavior is identical, only the multi-rule policy differs.
 
+For more patterns (listener composition, error handling, typed `Executor`, debug endpoints, adapter-agnostic helpers), see the [Cookbook](docs/cookbook.md).
+
 ## Toolkit
 
 | Package | What it gives you |
