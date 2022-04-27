@@ -45,7 +45,7 @@ What may still change:
 
 - **Adapter-internal `Rule` struct field order.** Today's adapters keep `Name` first by convention; a future ADR could land a builder pattern that hides the struct entirely.
 - **Benchmark numbers.** No regression policy yet; numbers in `make bench` output are baselines for local comparison, not contract.
-- **`docs/usage` tutorial layout.** Currently inline in README; may move to a dedicated `docs/` walkthrough as it grows.
+- **Rule loading shape.** `v0.3.0` is planned to introduce a `RuleConfigProvider` abstraction and a CSV loader (ADR-0023, currently 📝 Proposed). Today rules are added through in-code `AddRule` calls only.
 
 ## Quickstart
 
