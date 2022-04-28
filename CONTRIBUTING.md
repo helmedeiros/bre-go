@@ -26,9 +26,13 @@ Required tools (the [`Makefile`](Makefile) will tell you what is missing once it
 
 Significant design choices are captured as Architecture Decision Records under [`docs/architecture/decisions/`](docs/architecture/decisions/). Before adding a non-trivial cross-cutting feature, open an ADR.
 
+## Caller-facing patterns
+
+Realistic usage patterns -- adapter selection, listener composition, error handling, the typed `Executor`, debug endpoints, adapter-agnostic helpers -- live in [`docs/cookbook.md`](docs/cookbook.md). New patterns earn their place there once a real caller has used them in production.
+
 ## Adding a new engine adapter
 
-The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing callers depend on. The repo ships two adapters today -- [`engine/inmemory`](engine/inmemory) (all-match, last-action-wins) and [`engine/firstmatch`](engine/firstmatch) (first-match) -- both produced by the same four-step recipe:
+The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing callers depend on. The repo ships three adapters today -- [`engine/inmemory`](engine/inmemory) (all-match, last-action-wins), [`engine/firstmatch`](engine/firstmatch) (first-match), and [`engine/priority`](engine/priority) (priority-ordered first-match) -- all produced by the same four-step recipe:
 
 1. **Live in your own sub-package under `engine/`.** Pick a name that describes the *policy*, not the implementation (`inmemory` was the wrong precedent here; `firstmatch` is the right one. Names like `decisiontable` or `priorityqueue` would also be good).
 2. **Expose a `New(...) *Engine` constructor and an adapter-local `Rule` type.** The `Rule` type lives in the adapter package, not in `engine/`. The port stays minimal (see ADR-0014's rationale).
