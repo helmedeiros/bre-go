@@ -9,7 +9,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet -- v0.2.0 just shipped. New entries land here._
+- [`docs/cookbook.md`](docs/cookbook.md): caller-facing realistic patterns. Eight sections covering adapter selection, declarative condition composition, cancellation and timeouts, multi-listener composition, runtime introspection, error handling with `errors.As` idioms, the typed `Executor`, and writing adapter-agnostic helpers. Linked from README and CONTRIBUTING.
+- README Stability section refreshed: tutorial layout now stable (lives in cookbook). v0.3.0's planned rule-loading shape flagged.
+- CONTRIBUTING gains a "Caller-facing patterns" section pointing at the cookbook; adapter recipe intro now correctly counts three shipped adapters.
+
+### Planned (Proposed ADRs)
+
+- [ADR-0023](docs/architecture/decisions/0023-rule-config-provider.md): `RuleConfigProvider` abstraction decoupling matchers from loading. Foundation for v0.3.0. Status: 📝 Proposed.
 
 ## [0.2.0] - 2022-04-22
 
