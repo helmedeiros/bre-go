@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.3.0`. Transitions to **Accepted** in the commit that lands the implementation. First step of Phase 2's rule-loading work.
+Accepted — landed as the additive engine.RuleConfig + engine.RuleConfigProvider + engine.Load surface. Ships with v0.3.0 alongside the engine/csv concrete provider (ADR-0024).
 
 ## Context
 
