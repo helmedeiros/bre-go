@@ -49,4 +49,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0021](0021-release-versioning-policy.md) | Release Versioning Policy And Cutting v0.1.0 | ✅ Accepted |
 | [0022](0022-context-propagation.md) | Propagate context.Context Through Execute | ✅ Accepted (v0.2.0) |
 | [0023](0023-rule-config-provider.md) | RuleConfigProvider: Decouple Matchers From Loading | ✅ Accepted |
-| [0024](0024-csv-loader.md) | The CSV Loader Sub-Package | 📝 Proposed (target v0.3.0) |
+| [0024](0024-csv-loader.md) | The CSV Loader Sub-Package | ✅ Accepted |

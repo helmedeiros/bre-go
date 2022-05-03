@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.3.0`. Transitions to **Accepted** in the commit that lands the implementation. Partner ADR to ADR-0023 (RuleConfigProvider abstraction).
+Accepted — landed as the engine/csv sub-package alongside ADR-0023's RuleConfigProvider abstraction. Ships with v0.3.0.
 
 ## Context
 
