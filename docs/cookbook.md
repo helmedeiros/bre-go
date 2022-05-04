@@ -15,6 +15,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Handle errors from Execute](#handle-errors-from-execute)
   - [Use the typed Executor](#use-the-typed-executor)
   - [Write adapter-agnostic helpers](#write-adapter-agnostic-helpers)
+  - [Load rules from a CSV file](#load-rules-from-a-csv-file)
 
 ## Patterns
 
@@ -306,3 +307,59 @@ func auditRuleSet(lister engine.RuleInfoLister) error { ... }
 ```
 
 Callers pass the engine (it satisfies the interface implicitly via the type assertion the compiler does at the call site).
+
+### Load rules from a CSV file
+
+Since `v0.3.0`, `engine/csv` provides a `Loader[RC]` that reads a CSV source and yields typed `RuleConfig`s. The caller writes a `LineParser` (column-to-field mapping) and a small bridging closure between the loader and the adapter's `AddRule`.
+
+```go
+import (
+    "github.com/helmedeiros/bre-go/engine"
+    "github.com/helmedeiros/bre-go/engine/csv"
+    "github.com/helmedeiros/bre-go/engine/priority"
+)
+
+// Caller-defined config struct. Must satisfy engine.RuleConfig.
+type TierConfig struct {
+    Name      string
+    Priority  int
+    Threshold int
+    Decision  string
+}
+
+func (c TierConfig) RuleName() string { return c.Name }
+
+// Caller-defined parser. Maps a CSV row's columns to the struct's fields.
+func parseTier(columns []string) (TierConfig, error) {
+    if len(columns) < 4 {
+        return TierConfig{}, fmt.Errorf("expected 4 columns")
+    }
+    priority, _ := strconv.Atoi(columns[1])
+    threshold, _ := strconv.Atoi(columns[2])
+    return TierConfig{Name: columns[0], Priority: priority, Threshold: threshold, Decision: columns[3]}, nil
+}
+
+// Wire it together
+loader := csv.NewLoader("rules.csv", parseTier).SkipHeader(1)
+eng := priority.New()
+
+err := engine.Load[TierConfig](loader, func(c TierConfig) error {
+    return eng.AddRule(priority.Rule{
+        Name:      c.Name,
+        Priority:  c.Priority,
+        Condition: func(in interface{}) bool { return in.(int) >= c.Threshold },
+        Action:    func(interface{}) interface{} { return c.Decision },
+    })
+})
+if err != nil {
+    var le *csv.LoadError
+    if errors.As(err, &le) {
+        log.Fatalf("rules.csv row %d: %v", le.Row, le.Err)
+    }
+    log.Fatal(err)
+}
+```
+
+Other source shapes (embed.FS, HTTP bodies, tests with `strings.NewReader`) use `csv.NewLoaderFromReader(r, parser)` instead. The bridging closure stays identical -- the only thing that changes is where the bytes come from.
+
+`csv.LoadError` carries `Path` and 1-indexed `Row` for diagnostics. `Unwrap()` exposes the underlying error so `errors.Is` chains work normally.
