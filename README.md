@@ -40,12 +40,14 @@ What you can build on today:
 - **Listener lifecycle (`OnRuleMatched`, `OnExecutionStarted`, `OnExecutionFinished`, `OnExecutionErrored`).** Stable. Per-execution `OnRuleMatched` fires for successful matches only; `OnExecutionErrored` carries the typed `ActionPanicError`.
 - **`engine/exec.Executor[In, Out]`.** Stable since Go 1.18 GA. Wraps any `engine.Engine`. `Execute` takes `context.Context` since v0.2.0.
 - **`context.Context` propagation through `Execute`.** Stable since v0.2.0. A nil ctx is treated as `context.Background()` for test ergonomics; production code passes the real ctx.
+- **`engine.RuleConfig`, `engine.RuleConfigProvider[RC]`, `engine.Load[RC]`.** Stable since v0.3.0. The loader abstraction; any provider that returns `[]RC` works with any adapter via the `Load` helper.
+- **`engine/csv.Loader[RC]`.** Stable since v0.3.0. Reads CSV from a file or `io.Reader`, applies a caller-supplied `LineParser` per row.
 
 What may still change:
 
 - **Adapter-internal `Rule` struct field order.** Today's adapters keep `Name` first by convention; a future ADR could land a builder pattern that hides the struct entirely.
 - **Benchmark numbers.** No regression policy yet; numbers in `make bench` output are baselines for local comparison, not contract.
-- **Rule loading shape.** `v0.3.0` is planned to introduce a `RuleConfigProvider` abstraction and a CSV loader (ADR-0023, currently 📝 Proposed). Today rules are added through in-code `AddRule` calls only.
+- **Additional loader formats.** `engine/csv` is the first concrete provider; `engine/json` and `engine/yaml` are likely follow-ups when a real caller asks. The `engine.RuleConfigProvider` interface itself is stable.
 
 ## Quickstart
 
@@ -116,6 +118,7 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 | [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch), [`engine/priority`](engine/priority) | Three concrete adapters with different policies along two axes: ordering (insertion vs priority) and match policy (all vs first). |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
+| [`engine/csv`](engine/csv) | CSV-backed `engine.RuleConfigProvider`. `Loader[RC]` reads rules from a file or `io.Reader`, calls a caller-supplied `LineParser` for each row. `LoadError` carries the row number for diagnostics. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
 | [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and six built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`, `SnapshotListener` (test-helper that captures all four lifecycle events for later assertion). |
 
