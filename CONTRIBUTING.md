@@ -48,6 +48,17 @@ The `engine.Engine` port lives in [`engine/`](engine/) and is the only thing cal
 - **Honor `ctx.Err()`** between rules in `Execute`. A cancelled context fires `OnExecutionErrored` with the ctx error, fires `OnExecutionFinished` so the lifecycle pair stays balanced, and returns the partial `Result` plus the ctx error. A `nil` ctx is treated as `context.Background()`. See ADR-0022.
 - **Support `ConditionContext` / `ActionContext`** alongside the narrow `Condition` / `Action` on your `Rule` struct. Prefer the `*Context` variant when set; fall back to the narrow variant otherwise. `AddRule` validates that at least one of `Condition` / `ConditionContext` is set.
 
+## Adding a new rule loader
+
+The `engine.RuleConfigProvider[RC]` interface is the contract every loader satisfies. The repo ships `engine/csv` as the first concrete provider (ADR-0024); a JSON or YAML loader would follow the same recipe:
+
+1. **Live in your own sub-package under `engine/`** (`engine/json`, `engine/yaml`, etc.).
+2. **Expose a `Loader[RC]` type with a constructor pair**: one for the file-path case (`NewLoader(path, parser)`), one for `io.Reader` (`NewLoaderFromReader(r, parser)`). The reader form is useful for `embed.FS`, HTTP bodies, and tests.
+3. **Accept a `LineParser[RC]` closure** that does the format-specific column/field/key mapping. The loader handles I/O; the parser handles structural decoding.
+4. **Wrap errors in a typed `LoadError`** carrying source + position + the underlying error. Implement `Unwrap()` so `errors.Is` chains work.
+
+The Loader's only public method that satisfies the port is `RuleConfigs() ([]RC, error)`. A compile-time witness (`var _ engine.RuleConfigProvider[someRC] = (*Loader[someRC])(nil)`) catches drift.
+
 Adapters automatically work with the generic `engine/exec.Executor[In, Out]` wrapper -- the wrapper sits over `engine.Engine.Execute` and does not call into adapter internals. No extra wiring needed.
 - **Add a runnable example** in `example_test.go` showing the adapter's headline use case. Compile-checked godoc beats prose every time.
 
