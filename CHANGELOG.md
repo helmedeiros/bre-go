@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+_Nothing yet -- v0.3.0 just shipped. New entries land here._
+
 ## [0.3.0] - 2022-05-06
 
 Second minor release. Headline change: rule loading from external sources is now supported through `engine.RuleConfigProvider` + the first concrete provider `engine/csv`. Additive (no breaking changes from v0.2.0).
