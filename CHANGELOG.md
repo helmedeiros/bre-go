@@ -7,15 +7,25 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] - 2022-05-06
+
+Second minor release. Headline change: rule loading from external sources is now supported through `engine.RuleConfigProvider` + the first concrete provider `engine/csv`. Additive (no breaking changes from v0.2.0).
+
 ### Added
 
-- [`docs/cookbook.md`](docs/cookbook.md): caller-facing realistic patterns. Eight sections covering adapter selection, declarative condition composition, cancellation and timeouts, multi-listener composition, runtime introspection, error handling with `errors.As` idioms, the typed `Executor`, and writing adapter-agnostic helpers. Linked from README and CONTRIBUTING.
-- README Stability section refreshed: tutorial layout now stable (lives in cookbook). v0.3.0's planned rule-loading shape flagged.
-- CONTRIBUTING gains a "Caller-facing patterns" section pointing at the cookbook; adapter recipe intro now correctly counts three shipped adapters.
+- `engine.RuleConfig` interface (single method `RuleName() string`) -- the minimum contract any loader's configuration type must satisfy.
+- `engine.RuleConfigProvider[RC engine.RuleConfig]` interface -- the single-method (`RuleConfigs() ([]RC, error)`) shape every loader implements.
+- `engine.Load[RC]` generic helper -- pulls configs from a provider and bridges to an adapter's `AddRule` via a caller-supplied closure.
+- `engine/csv` package -- first concrete provider. `Loader[RC]` reads CSV from a file path (`NewLoader`) or `io.Reader` (`NewLoaderFromReader`); `SkipHeader(n)` and `Comma(c)` chainable for ergonomics. Errors wrap in `*LoadError` carrying `Path` and 1-indexed `Row`; `Unwrap()` exposes the underlying error.
+- Runnable godoc example wiring `csv.NewLoaderFromReader` → `engine.Load` → `priority.Engine`.
+- Benchmarks for `csv.Loader` at 10 and 100 rows (~1.4us and ~8.5us baselines).
+- Cookbook section "Load rules from a CSV file" walking through the canonical pattern.
+- CONTRIBUTING section "Adding a new rule loader" with the four-step recipe future loader contributors follow.
 
-### Planned (Proposed ADRs)
+### Internal
 
-- [ADR-0023](docs/architecture/decisions/0023-rule-config-provider.md): `RuleConfigProvider` abstraction decoupling matchers from loading. Foundation for v0.3.0. Status: 📝 Proposed.
+- `docs/cookbook.md` landed (eight earlier sections from Week 17, plus the CSV section).
+- README Toolkit + Stability sections refreshed for the new public surface.
 
 ## [0.2.0] - 2022-04-22
 

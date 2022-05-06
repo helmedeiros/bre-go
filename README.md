@@ -2,16 +2,16 @@
 
 A Go business rule engine with a swappable engine port.
 
-The public API is backend-agnostic. Today it ships with two small in-process engines for tests, examples, and lightweight production use; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
+The public API is backend-agnostic. Today it ships with three in-process engines (insertion-order all-match, insertion-order first-match, priority-ordered first-match) and a CSV rule loader; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
 
 ## Status
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.2.0` -- second minor release. Three concrete adapters, six public packages, twenty-two Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.3.0` -- third minor release. Three concrete adapters, **rule loading from CSV**, nine public packages, twenty-four Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.2.0
+go get github.com/helmedeiros/bre-go@v0.3.0
 ```
 
 ### Upgrading from v0.1.0
