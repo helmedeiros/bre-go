@@ -20,6 +20,40 @@ type RuleConfigProvider[RC RuleConfig] interface {
 	RuleConfigs() ([]RC, error)
 }
 
+// ChainProviders combines multiple RuleConfigProvider[RC] into one.
+// The returned provider's RuleConfigs concatenates each source's
+// output in the order given. The first provider error short-circuits
+// the remaining providers and is returned unchanged.
+//
+// Zero arguments returns an empty provider (RuleConfigs returns
+// nil, nil) -- the identity element for chain composition.
+//
+// Typical wiring:
+//
+//	defaults := csv.NewLoader[TierConfig]("defaults.csv", parseTier)
+//	tenant   := csv.NewLoader[TierConfig](tenantPath, parseTier)
+//	combined := engine.ChainProviders(defaults, tenant)
+//	err := engine.Load(combined, func(c TierConfig) error { ... })
+func ChainProviders[RC RuleConfig](providers ...RuleConfigProvider[RC]) RuleConfigProvider[RC] {
+	return &chainedProvider[RC]{providers: providers}
+}
+
+type chainedProvider[RC RuleConfig] struct {
+	providers []RuleConfigProvider[RC]
+}
+
+func (c *chainedProvider[RC]) RuleConfigs() ([]RC, error) {
+	var out []RC
+	for _, p := range c.providers {
+		configs, err := p.RuleConfigs()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, configs...)
+	}
+	return out, nil
+}
+
 // Load pulls configs from provider and calls add for each, in
 // insertion order. Returns the first error from either the provider
 // or add, short-circuiting the remaining configs.

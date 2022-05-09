@@ -108,6 +108,59 @@ func TestLoadShortCircuitsOnAddError(t *testing.T) {
 	}
 }
 
+func TestChainProvidersWithZeroArgsReturnsEmpty(t *testing.T) {
+	chain := engine.ChainProviders[testRuleConfig]()
+
+	configs, err := chain.RuleConfigs()
+
+	if err != nil {
+		t.Fatalf("RuleConfigs: unexpected error: %v", err)
+	}
+	if len(configs) != 0 {
+		t.Fatalf("configs: want empty for zero-arg chain, got %d", len(configs))
+	}
+}
+
+func TestChainProvidersWithOneProviderReturnsItsConfigs(t *testing.T) {
+	inner := &sliceProvider{configs: []testRuleConfig{{Name: "alpha"}, {Name: "beta"}}}
+	chain := engine.ChainProviders[testRuleConfig](inner)
+
+	configs, _ := chain.RuleConfigs()
+
+	if len(configs) != 2 || configs[0].Name != "alpha" || configs[1].Name != "beta" {
+		t.Fatalf("configs: want [alpha beta], got %v", configs)
+	}
+}
+
+func TestChainProvidersConcatenatesInOrder(t *testing.T) {
+	first := &sliceProvider{configs: []testRuleConfig{{Name: "a"}, {Name: "b"}}}
+	second := &sliceProvider{configs: []testRuleConfig{{Name: "c"}, {Name: "d"}}}
+	chain := engine.ChainProviders[testRuleConfig](first, second)
+
+	configs, _ := chain.RuleConfigs()
+
+	want := []string{"a", "b", "c", "d"}
+	for i, w := range want {
+		if configs[i].Name != w {
+			t.Fatalf("configs[%d].Name: want %q, got %q", i, w, configs[i].Name)
+		}
+	}
+}
+
+func TestChainProvidersShortCircuitsOnProviderError(t *testing.T) {
+	sentinel := errors.New("boom")
+	first := &sliceProvider{configs: []testRuleConfig{{Name: "a"}}}
+	second := &sliceProvider{err: sentinel}
+	third := &sliceProvider{configs: []testRuleConfig{{Name: "z"}}}
+	chain := engine.ChainProviders[testRuleConfig](first, second, third)
+
+	_, err := chain.RuleConfigs()
+
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("err: want sentinel, got %v", err)
+	}
+}
+
 func TestLoadAcceptsEmptyProvider(t *testing.T) {
 	provider := &sliceProvider{configs: nil}
 	calls := 0

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.4.0`. Transitions to **Accepted** in the commit that lands the implementation. Closes the "compose rule sets from multiple sources" use case ADR-0019 flagged as a primary motivation for the priority adapter.
+Accepted — landed as the additive engine.ChainProviders helper. Ships with v0.4.0 alongside ADR-0026 (correlation-ID propagation).
 
 ## Context
 
