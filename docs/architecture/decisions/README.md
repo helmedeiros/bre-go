@@ -50,3 +50,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0022](0022-context-propagation.md) | Propagate context.Context Through Execute | ✅ Accepted (v0.2.0) |
 | [0023](0023-rule-config-provider.md) | RuleConfigProvider: Decouple Matchers From Loading | ✅ Accepted |
 | [0024](0024-csv-loader.md) | The CSV Loader Sub-Package | ✅ Accepted |
+| [0025](0025-multi-source-rule-composition.md) | Multi-Source Rule Composition | 📝 Proposed (target v0.4.0) |
