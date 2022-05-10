@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.4.0`. Transitions to **Accepted** in the commit that lands the implementation. Closes the second half of Phase 2's observability extension.
+Accepted — landed as the additive engine.WithCorrelationID + engine.CorrelationIDFromContext helpers. Ships with v0.4.0 alongside ADR-0025 (multi-source rule composition).
 
 ## Context
 
