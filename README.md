@@ -42,6 +42,8 @@ What you can build on today:
 - **`context.Context` propagation through `Execute`.** Stable since v0.2.0. A nil ctx is treated as `context.Background()` for test ergonomics; production code passes the real ctx.
 - **`engine.RuleConfig`, `engine.RuleConfigProvider[RC]`, `engine.Load[RC]`.** Stable since v0.3.0. The loader abstraction; any provider that returns `[]RC` works with any adapter via the `Load` helper.
 - **`engine/csv.Loader[RC]`.** Stable since v0.3.0. Reads CSV from a file or `io.Reader`, applies a caller-supplied `LineParser` per row.
+- **`engine.ChainProviders[RC](providers...)`.** Stable since v0.4.0. Combines multiple `RuleConfigProvider[RC]` into one; concatenates in order; first-error short-circuits.
+- **`engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)`.** Stable since v0.4.0. Standard context-key helpers for stamping a request-scoped identifier; `ConditionContext` / `ActionContext` callbacks read the ID inside `Execute`.
 
 What may still change:
 
@@ -114,7 +116,7 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 
 | Package | What it gives you |
 |---------|-------------------|
-| [`engine`](engine) | The `Engine` port, `Request`/`Result`/`RuleInfo` value types, the `ListenerHost`, `RuleLister`, and `RuleInfoLister` optional capability interfaces. |
+| [`engine`](engine) | The `Engine` port, `Request`/`Result`/`RuleInfo` value types, the `ListenerHost`/`RuleLister`/`RuleInfoLister` optional capability interfaces, plus loader (`RuleConfig`, `RuleConfigProvider`, `Load`, `ChainProviders`) and correlation (`WithCorrelationID`, `CorrelationIDFromContext`) helpers. |
 | [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch), [`engine/priority`](engine/priority) | Three concrete adapters with different policies along two axes: ordering (insertion vs priority) and match policy (all vs first). |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
