@@ -16,6 +16,8 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Use the typed Executor](#use-the-typed-executor)
   - [Write adapter-agnostic helpers](#write-adapter-agnostic-helpers)
   - [Load rules from a CSV file](#load-rules-from-a-csv-file)
+  - [Compose rules from multiple sources](#compose-rules-from-multiple-sources)
+  - [Propagate correlation IDs](#propagate-correlation-ids)
 
 ## Patterns
 
@@ -363,3 +365,66 @@ if err != nil {
 Other source shapes (embed.FS, HTTP bodies, tests with `strings.NewReader`) use `csv.NewLoaderFromReader(r, parser)` instead. The bridging closure stays identical -- the only thing that changes is where the bytes come from.
 
 `csv.LoadError` carries `Path` and 1-indexed `Row` for diagnostics. `Unwrap()` exposes the underlying error so `errors.Is` chains work normally.
+
+### Compose rules from multiple sources
+
+Real applications often layer rule sets: a baseline ships with the application, per-tenant rules override it, an experiments file adds short-lived rules on top. `engine.ChainProviders` combines multiple providers into one without bespoke plumbing.
+
+```go
+defaults := csv.NewLoader[TierConfig]("defaults.csv", parseTier)
+tenant   := csv.NewLoader[TierConfig](tenantPath, parseTier)
+experiments := csv.NewLoader[TierConfig]("experiments.csv", parseTier)
+
+combined := engine.ChainProviders(defaults, tenant, experiments)
+
+eng := priority.New()
+err := engine.Load[TierConfig](combined, func(c TierConfig) error {
+    return eng.AddRule(toPriorityRule(c))
+})
+```
+
+Order matters: `priority.Engine` resolves precedence by the `Priority` field, but registration order breaks ties (ADR-0019). If two sources define rules with the same priority, the later source's rule loses the tie. Order the chain accordingly.
+
+First-error-wins: if any provider returns an error from `RuleConfigs()`, `ChainProviders` short-circuits and returns that error. Earlier providers' configs are not partially applied -- the bridging closure passed to `engine.Load` never runs until every provider has returned its slice successfully.
+
+Empty providers (zero `RuleConfigs`) are fine. A "feature-flag gate" can return an empty slice when disabled:
+
+```go
+type GuardedProvider[RC engine.RuleConfig] struct {
+    enabled bool
+    inner   engine.RuleConfigProvider[RC]
+}
+
+func (g *GuardedProvider[RC]) RuleConfigs() ([]RC, error) {
+    if !g.enabled {
+        return nil, nil
+    }
+    return g.inner.RuleConfigs()
+}
+```
+
+### Propagate correlation IDs
+
+Since `v0.4.0`, `engine.WithCorrelationID` and `engine.CorrelationIDFromContext` standardize how a request-scoped identifier flows through `Execute`. Callbacks that already receive `context.Context` (`ConditionContext`, `ActionContext`) read the ID directly:
+
+```go
+// In the HTTP handler:
+ctx := r.Context()
+ctx = engine.WithCorrelationID(ctx, r.Header.Get("X-Request-ID"))
+_, _ = eng.Execute(ctx, engine.Request{Input: order})
+
+// In a rule's ActionContext:
+_ = e.AddRule(inmemory.Rule{
+    Name: "audit-trail",
+    Condition: conditions.Always(),
+    ActionContext: func(ctx context.Context, in interface{}) interface{} {
+        id := engine.CorrelationIDFromContext(ctx)
+        log.Printf("request=%s rule=audit-trail input=%v", id, in)
+        return nil
+    },
+})
+```
+
+The key used internally is an unexported type, so no other middleware can collide with it or read the value through `ctx.Value(string)("correlation-id")` guesses.
+
+Listeners do not yet receive `context.Context`; for now, observers wanting per-execution correlation either (a) attach a per-request listener that captures the ID in its closure or (b) emit the correlation via an `ActionContext` callback that runs on every relevant rule. A future ADR will add ctx-aware listener interfaces (`OnRuleMatchedCtx` and the lifecycle variants) once a real caller shapes the requirements.
