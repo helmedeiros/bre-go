@@ -7,9 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2022-05-13
+
+Fourth minor release. Closes Phase 2's rule-loading + observability extensions. Additive (no breaking changes from v0.3.0).
+
 ### Added
 
-_Nothing yet -- v0.3.0 just shipped. New entries land here._
+- `engine.ChainProviders[RC](providers...)` -- multi-source rule composition. Combines multiple `RuleConfigProvider[RC]` into one; concatenates outputs in argument order; first-error short-circuits. Zero-arg call returns an empty provider (identity element). ADR-0025.
+- `engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)` -- standard helpers for stamping a request-scoped identifier on `context.Context`. Unexported key type prevents collisions. `ConditionContext` / `ActionContext` callbacks recover the ID inside `Execute`. ADR-0026.
+- Cookbook gains two sections: "Compose rules from multiple sources" and "Propagate correlation IDs", with the canonical wiring patterns and the documented per-request-listener workaround until ctx-aware listener interfaces land in a future ADR.
+- README Stability section adds the new four helpers; Toolkit row for engine names the loader and correlation helpers explicitly.
 
 ## [0.3.0] - 2022-05-06
 
