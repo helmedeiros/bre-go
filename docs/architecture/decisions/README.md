@@ -52,4 +52,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0024](0024-csv-loader.md) | The CSV Loader Sub-Package | ✅ Accepted |
 | [0025](0025-multi-source-rule-composition.md) | Multi-Source Rule Composition | ✅ Accepted |
 | [0026](0026-correlation-id-propagation.md) | Correlation-ID Propagation Through Execute | ✅ Accepted |
-| [0027](0027-parser-package.md) | The Expression Parser Package | 📝 Proposed (target v0.5.0) |
+| [0027](0027-parser-package.md) | The Expression Parser Package | ✅ Accepted |

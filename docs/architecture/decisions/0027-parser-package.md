@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.5.0`. Transitions to **Accepted** in the commit that lands the implementation. Opens Phase 3 (Expression DSL).
+Accepted — landed as engine/parser. Opens Phase 3 (Expression DSL). Ships with v0.5.0.
 
 ## Context
 
