@@ -18,6 +18,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Load rules from a CSV file](#load-rules-from-a-csv-file)
   - [Compose rules from multiple sources](#compose-rules-from-multiple-sources)
   - [Propagate correlation IDs](#propagate-correlation-ids)
+  - [Write rule conditions as strings](#write-rule-conditions-as-strings)
 
 ## Patterns
 
@@ -428,3 +429,78 @@ _ = e.AddRule(inmemory.Rule{
 The key used internally is an unexported type, so no other middleware can collide with it or read the value through `ctx.Value(string)("correlation-id")` guesses.
 
 Listeners do not yet receive `context.Context`; for now, observers wanting per-execution correlation either (a) attach a per-request listener that captures the ID in its closure or (b) emit the correlation via an `ActionContext` callback that runs on every relevant rule. A future ADR will add ctx-aware listener interfaces (`OnRuleMatchedCtx` and the lifecycle variants) once a real caller shapes the requirements.
+
+### Write rule conditions as strings
+
+Since `v0.5.0`, `engine/parser` turns expression strings into evaluable predicates. Combined with the v0.3.0 / v0.4.0 loaders, rule conditions can live in CSV / JSON files instead of compiled Go closures.
+
+Supported grammar:
+
+| Construct | Example |
+|---|---|
+| Equality | `origin == "DE"` |
+| Inequality | `tier != "economy"` |
+| Set membership | `tier IN ("vip", "premium")` |
+| Set exclusion | `partner NOT IN ("blocked-a", "blocked-b")` |
+| Combinator | `a == "x" AND b == "y" OR NOT c == "z"` |
+| Parens | `(a == "x" OR b == "y") AND c == "z"` |
+
+Precedence is `OR < AND < NOT < comparison`. String literals only; numeric, boolean and float literals are out of scope for `v0.5.0` (encode booleans as `"true"` / `"false"` strings).
+
+Wiring with a CSV-loaded rule set:
+
+```go
+type RuleRow struct {
+    Name     string
+    Priority int
+    CondExpr string
+    Percent  int
+}
+
+func (r RuleRow) RuleName() string { return r.Name }
+
+func parseRow(cols []string) (RuleRow, error) {
+    // cols: name, priority, condition_expression, percent
+    prio, _ := strconv.Atoi(cols[1])
+    pct, _ := strconv.Atoi(cols[3])
+    return RuleRow{Name: cols[0], Priority: prio, CondExpr: cols[2], Percent: pct}, nil
+}
+
+func reqAsFact(in interface{}) map[string]interface{} {
+    r := in.(Request)
+    return map[string]interface{}{
+        "origin":  r.Origin,
+        "tier":    r.Tier,
+        "partner": r.Partner,
+    }
+}
+
+loader := csv.NewLoader[RuleRow]("rules.csv", parseRow)
+eng := priority.New()
+
+err := engine.Load[RuleRow](loader, func(r RuleRow) error {
+    pred, parseErr := parser.Parse(r.CondExpr)
+    if parseErr != nil {
+        return fmt.Errorf("rule %q: %w", r.Name, parseErr)
+    }
+    return eng.AddRule(priority.Rule{
+        Name:      r.Name,
+        Priority:  r.Priority,
+        Condition: parser.AsCondition(pred, reqAsFact),
+        Action:    func(interface{}) interface{} { return r.Percent },
+    })
+})
+```
+
+Parse errors surface as `*parser.ParseError` with a `Pos` byte offset, making operator-level diagnostics easy:
+
+```go
+var pe *parser.ParseError
+if errors.As(parseErr, &pe) {
+    log.Printf("syntax error at offset %d: %s", pe.Pos, pe.Message)
+}
+```
+
+Adding a new rule is now a CSV row edit. No recompile.
+
+**Performance**: parsing is ~100-700 ns per expression depending on complexity (do it at load time, once). Evaluating a parsed `Predicate` is ~20 ns/call with zero allocations.

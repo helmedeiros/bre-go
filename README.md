@@ -44,6 +44,7 @@ What you can build on today:
 - **`engine/csv.Loader[RC]`.** Stable since v0.3.0. Reads CSV from a file or `io.Reader`, applies a caller-supplied `LineParser` per row.
 - **`engine.ChainProviders[RC](providers...)`.** Stable since v0.4.0. Combines multiple `RuleConfigProvider[RC]` into one; concatenates in order; first-error short-circuits.
 - **`engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)`.** Stable since v0.4.0. Standard context-key helpers for stamping a request-scoped identifier; `ConditionContext` / `ActionContext` callbacks read the ID inside `Execute`.
+- **`engine/parser` package.** Stable since v0.5.0. Compiles expression strings (`==`, `!=`, `IN`, `NOT IN`, `AND`, `OR`, `NOT`) into `Predicate`s, with `AsCondition` bridging them to `Rule.Condition`. String literals only; numeric and boolean literals stay out of scope until a real caller asks.
 
 What may still change:
 
@@ -121,6 +122,7 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/csv`](engine/csv) | CSV-backed `engine.RuleConfigProvider`. `Loader[RC]` reads rules from a file or `io.Reader`, calls a caller-supplied `LineParser` for each row. `LoadError` carries the row number for diagnostics. |
+| [`engine/parser`](engine/parser) | Expression DSL. `Parse(expr)` compiles a condition string into a `Predicate`; `AsCondition(pred, factOf)` bridges it to `Rule.Condition`. Grammar: `==` / `!=` / `IN` / `NOT IN` / `AND` / `OR` / `NOT` over string literals. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
 | [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and six built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`, `SnapshotListener` (test-helper that captures all four lifecycle events for later assertion). |
 
