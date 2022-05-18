@@ -8,10 +8,10 @@ The public API is backend-agnostic. Today it ships with three in-process engines
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.4.0` -- fourth minor release. Three concrete adapters, **rule loading from CSV**, nine public packages, twenty-six Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.5.0` -- fifth minor release. Three concrete adapters, **rule loading from CSV**, ten public packages, twenty-seven Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.4.0
+go get github.com/helmedeiros/bre-go@v0.5.0
 ```
 
 ### Upgrading from v0.1.0

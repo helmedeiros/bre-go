@@ -7,9 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2022-05-20
+
+Fifth minor release. Opens Phase 3 (Expression DSL). Additive (no breaking changes from v0.4.0).
+
 ### Added
 
-_Nothing yet -- v0.4.0 just shipped. New entries land here._
+- `engine/parser` package -- expression DSL for rule conditions. `Parse(expr)` compiles a condition string into a `Predicate` (`func(map[string]interface{}) bool`); `AsCondition(pred, factOf)` bridges it to `Rule.Condition`. Grammar: `==` / `!=` / `IN` / `NOT IN` / `AND` / `OR` / `NOT` over string literals; parens; both single (`'...'`) and double (`"..."`) quotes (single-quote support added during pre-tag validation when CSV-cell-embedded conditions hit the obvious double-quote collision). `ParseError` carries the byte position of any syntax failure. Tenth public package; 100% test coverage; ~300 LOC. ADR-0027.
+- Cookbook gains a "Write rule conditions as strings" section with the grammar table, the CSV-loaded wiring, and the single-quote-strings-in-CSV explainer.
+- README Toolkit lists `engine/parser`; Stability section adds the parser surface as stable.
 
 ## [0.4.0] - 2022-05-13
 
