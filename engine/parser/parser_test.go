@@ -163,6 +163,41 @@ func TestParseParensOverridePrecedence(t *testing.T) {
 	}
 }
 
+func TestParseSingleQuotedStringMatches(t *testing.T) {
+	p := mustParse(t, `origin == 'DE'`)
+	if !p(map[string]interface{}{"origin": "DE"}) {
+		t.Fatalf("single-quoted string should match equal value")
+	}
+}
+
+func TestParseSingleQuotedStringInList(t *testing.T) {
+	p := mustParse(t, `tier IN ('vip', 'premium')`)
+	if !p(map[string]interface{}{"tier": "vip"}) {
+		t.Fatalf("single-quoted IN values should match")
+	}
+}
+
+func TestParseSingleQuotedAllowsLiteralDoubleQuote(t *testing.T) {
+	p := mustParse(t, `name == 'he said "hi"'`)
+	if !p(map[string]interface{}{"name": `he said "hi"`}) {
+		t.Fatalf("single-quoted string with literal double quote should match")
+	}
+}
+
+func TestParseDoubleQuotedAllowsLiteralSingleQuote(t *testing.T) {
+	p := mustParse(t, `name == "it's-fine"`)
+	if !p(map[string]interface{}{"name": "it's-fine"}) {
+		t.Fatalf("double-quoted string with literal single quote should match")
+	}
+}
+
+func TestParseSingleQuoteEscapeForDelimiter(t *testing.T) {
+	p := mustParse(t, `name == 'it\'s'`)
+	if !p(map[string]interface{}{"name": "it's"}) {
+		t.Fatalf("escaped single quote inside single-quoted string should match")
+	}
+}
+
 func TestParseStringWithEscapedQuote(t *testing.T) {
 	p := mustParse(t, `name == "he said \"hi\""`)
 	if !p(map[string]interface{}{"name": `he said "hi"`}) {

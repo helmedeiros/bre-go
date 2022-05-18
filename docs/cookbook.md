@@ -504,3 +504,13 @@ if errors.As(parseErr, &pe) {
 Adding a new rule is now a CSV row edit. No recompile.
 
 **Performance**: parsing is ~100-700 ns per expression depending on complexity (do it at load time, once). Evaluating a parsed `Predicate` is ~20 ns/call with zero allocations.
+
+**Single-quoted strings in CSV**: rule conditions written inside CSV cells should use **single quotes** for string literals, not double quotes — CSV reserves `"` for its own field-quoting convention. The parser accepts both `'...'` and `"..."`, so:
+
+```csv
+de-vip,100,"origin == 'DE' AND tier IN ('vip', 'premium')",25
+```
+
+The condition field itself is wrapped in CSV double quotes (required when the field contains commas — IN lists trigger this), and single quotes inside denote string literals to the parser. No escaping gymnastics.
+
+The reverse — double-quoted strings with CSV-style `""` escaping — also works (`"origin == ""DE"""`) but is harder to read.

@@ -10,9 +10,17 @@
 //	op     = "==" | "!=" | "IN" | "NOT IN"
 //	value  = STRING | "(" STRING ("," STRING)* ")"
 //
-// String literals are double-quoted with \" and \\ escapes. Identifiers
-// match [A-Za-z_][A-Za-z0-9_]*. Whitespace separates tokens but is
-// otherwise ignored.
+// String literals are double-quoted or single-quoted; the chosen
+// delimiter must match on both sides, and the OTHER delimiter inside
+// is a literal character (no escape needed). The active delimiter is
+// escaped with a leading backslash (\" or \'); a literal backslash
+// is \\. Identifiers match [A-Za-z_][A-Za-z0-9_]*. Whitespace
+// separates tokens but is otherwise ignored.
+//
+// Single-quote support exists so expressions can live in CSV columns
+// without colliding with CSV's own double-quote quoting convention:
+//
+//	"origin == 'DE'"   <- inside a CSV cell, no escaping required
 package parser
 
 import (
@@ -110,8 +118,8 @@ func tokenize(s string) ([]token, error) {
 		case c == '!' && i+1 < len(s) && s[i+1] == '=':
 			out = append(out, token{kind: tokNeq, text: "!=", pos: i})
 			i += 2
-		case c == '"':
-			t, advance, err := readString(s, i)
+		case c == '"' || c == '\'':
+			t, advance, err := readString(s, i, c)
 			if err != nil {
 				return nil, err
 			}
@@ -129,18 +137,18 @@ func tokenize(s string) ([]token, error) {
 	return out, nil
 }
 
-func readString(s string, start int) (token, int, error) {
-	// s[start] is '"'
+func readString(s string, start int, delim byte) (token, int, error) {
+	// s[start] is delim (either '"' or '\'')
 	var sb strings.Builder
 	i := start + 1
 	for i < len(s) {
 		c := s[i]
-		if c == '"' {
+		if c == delim {
 			return token{kind: tokString, text: sb.String(), pos: start}, i - start + 1, nil
 		}
 		if c == '\\' && i+1 < len(s) {
 			switch s[i+1] {
-			case '"', '\\':
+			case delim, '\\':
 				sb.WriteByte(s[i+1])
 				i += 2
 				continue
