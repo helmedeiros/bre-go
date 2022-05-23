@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target release `v0.6.0`. Transitions to **Accepted** in the commit that lands the implementation. Closes Phase 3 (Expression DSL) by giving the parser an inspectable alternative output alongside the closure-based `Predicate`.
+Accepted — landed as the new exported types in `engine/parser`. Ships with v0.6.0. Closes Phase 3 (Expression DSL).
 
 ## Context
 

@@ -47,19 +47,31 @@ func (e *ParseError) Error() string {
 
 // Parse compiles expr into a Predicate.
 func Parse(expr string) (Predicate, error) {
+	cond, err := ParseToCondition(expr)
+	if err != nil {
+		return nil, err
+	}
+	return AsPredicate(cond), nil
+}
+
+// ParseToCondition compiles expr into a typed Condition tree. The
+// returned tree's concrete types (StringCondition, SetCondition,
+// AndCondition, OrCondition, NotCondition) can be inspected,
+// marshaled, and compared.
+func ParseToCondition(expr string) (Condition, error) {
 	tokens, err := tokenize(expr)
 	if err != nil {
 		return nil, err
 	}
 	p := &parser{tokens: tokens}
-	pred, err := p.parseExpr()
+	cond, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
 	if p.peek().kind != tokEOF {
 		return nil, &ParseError{Pos: p.peek().pos, Message: "trailing tokens after expression"}
 	}
-	return pred, nil
+	return cond, nil
 }
 
 // AsCondition wraps a Predicate as a func(interface{}) bool by applying
@@ -206,9 +218,9 @@ type parser struct {
 func (p *parser) peek() token    { return p.tokens[p.cur] }
 func (p *parser) advance() token { t := p.tokens[p.cur]; p.cur++; return t }
 
-func (p *parser) parseExpr() (Predicate, error) { return p.parseOr() }
+func (p *parser) parseExpr() (Condition, error) { return p.parseOr() }
 
-func (p *parser) parseOr() (Predicate, error) {
+func (p *parser) parseOr() (Condition, error) {
 	left, err := p.parseAnd()
 	if err != nil {
 		return nil, err
@@ -219,13 +231,17 @@ func (p *parser) parseOr() (Predicate, error) {
 		if err != nil {
 			return nil, err
 		}
-		l, r := left, right
-		left = func(f map[string]interface{}) bool { return l(f) || r(f) }
+		// Flatten chained ORs into a single OrCondition.
+		if or, ok := left.(OrCondition); ok {
+			left = OrCondition{Children: append(or.Children, right)}
+		} else {
+			left = OrCondition{Children: []Condition{left, right}}
+		}
 	}
 	return left, nil
 }
 
-func (p *parser) parseAnd() (Predicate, error) {
+func (p *parser) parseAnd() (Condition, error) {
 	left, err := p.parseNot()
 	if err != nil {
 		return nil, err
@@ -236,25 +252,28 @@ func (p *parser) parseAnd() (Predicate, error) {
 		if err != nil {
 			return nil, err
 		}
-		l, r := left, right
-		left = func(f map[string]interface{}) bool { return l(f) && r(f) }
+		if and, ok := left.(AndCondition); ok {
+			left = AndCondition{Children: append(and.Children, right)}
+		} else {
+			left = AndCondition{Children: []Condition{left, right}}
+		}
 	}
 	return left, nil
 }
 
-func (p *parser) parseNot() (Predicate, error) {
+func (p *parser) parseNot() (Condition, error) {
 	if p.peek().kind == tokNot {
 		p.advance()
 		inner, err := p.parseAtom()
 		if err != nil {
 			return nil, err
 		}
-		return func(f map[string]interface{}) bool { return !inner(f) }, nil
+		return NotCondition{Child: inner}, nil
 	}
 	return p.parseAtom()
 }
 
-func (p *parser) parseAtom() (Predicate, error) {
+func (p *parser) parseAtom() (Condition, error) {
 	if p.peek().kind == tokLParen {
 		p.advance()
 		inner, err := p.parseExpr()
@@ -270,7 +289,7 @@ func (p *parser) parseAtom() (Predicate, error) {
 	return p.parseComparison()
 }
 
-func (p *parser) parseComparison() (Predicate, error) {
+func (p *parser) parseComparison() (Condition, error) {
 	if p.peek().kind != tokIdent {
 		return nil, &ParseError{Pos: p.peek().pos, Message: "expected field identifier"}
 	}
@@ -283,19 +302,21 @@ func (p *parser) parseComparison() (Predicate, error) {
 			return nil, &ParseError{Pos: p.peek().pos, Message: "expected string literal"}
 		}
 		want := p.advance().text
-		if opTok.kind == tokEq {
-			return makeEq(field, want), nil
+		op := OpEq
+		if opTok.kind == tokNeq {
+			op = OpNeq
 		}
-		return makeNeq(field, want), nil
+		return StringCondition{Field: field, Op: op, Value: want}, nil
 	case tokIn, tokNotIn:
 		values, err := p.parseValueList()
 		if err != nil {
 			return nil, err
 		}
-		if opTok.kind == tokIn {
-			return makeIn(field, values), nil
+		op := OpIn
+		if opTok.kind == tokNotIn {
+			op = OpNotIn
 		}
-		return makeNotIn(field, values), nil
+		return SetCondition{Field: field, Op: op, Values: values}, nil
 	default:
 		return nil, &ParseError{Pos: opTok.pos, Message: "expected ==, !=, IN, or NOT IN"}
 	}
@@ -323,55 +344,5 @@ func (p *parser) parseValueList() ([]string, error) {
 	}
 }
 
-// ===== predicate factories =====
-
-func makeEq(field, want string) Predicate {
-	return func(f map[string]interface{}) bool {
-		got, ok := f[field]
-		if !ok {
-			return false
-		}
-		s, ok := got.(string)
-		return ok && s == want
-	}
-}
-
-func makeNeq(field, want string) Predicate {
-	return func(f map[string]interface{}) bool {
-		got, ok := f[field]
-		if !ok {
-			return false
-		}
-		s, ok := got.(string)
-		return ok && s != want
-	}
-}
-
-func makeIn(field string, values []string) Predicate {
-	set := make(map[string]struct{}, len(values))
-	for _, v := range values {
-		set[v] = struct{}{}
-	}
-	return func(f map[string]interface{}) bool {
-		got, ok := f[field]
-		if !ok {
-			return false
-		}
-		s, ok := got.(string)
-		if !ok {
-			return false
-		}
-		_, hit := set[s]
-		return hit
-	}
-}
-
-func makeNotIn(field string, values []string) Predicate {
-	in := makeIn(field, values)
-	return func(f map[string]interface{}) bool {
-		if _, ok := f[field]; !ok {
-			return false
-		}
-		return !in(f)
-	}
-}
+// Predicate factories removed: comparison evaluation now lives on
+// the typed Condition methods in condition.go.
