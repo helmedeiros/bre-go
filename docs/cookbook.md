@@ -19,6 +19,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Compose rules from multiple sources](#compose-rules-from-multiple-sources)
   - [Propagate correlation IDs](#propagate-correlation-ids)
   - [Write rule conditions as strings](#write-rule-conditions-as-strings)
+  - [Inspect parsed conditions as typed trees](#inspect-parsed-conditions-as-typed-trees)
 
 ## Patterns
 
@@ -514,3 +515,51 @@ de-vip,100,"origin == 'DE' AND tier IN ('vip', 'premium')",25
 The condition field itself is wrapped in CSV double quotes (required when the field contains commas — IN lists trigger this), and single quotes inside denote string literals to the parser. No escaping gymnastics.
 
 The reverse — double-quoted strings with CSV-style `""` escaping — also works (`"origin == ""DE"""`) but is harder to read.
+
+### Inspect parsed conditions as typed trees
+
+Since `v0.6.0`, `parser.ParseToCondition` returns a typed tree instead of an opaque closure. The tree's concrete types -- `StringCondition`, `SetCondition`, `AndCondition`, `OrCondition`, `NotCondition` -- can be inspected, marshalled, or transformed.
+
+Use the tree for runtime introspection ("what fields does this rule reference?"):
+
+```go
+import "github.com/helmedeiros/bre-go/engine/parser"
+
+cond, _ := parser.ParseToCondition(`origin == 'DE' AND tier IN ('vip', 'premium')`)
+
+var fields []string
+var walk func(c parser.Condition)
+walk = func(c parser.Condition) {
+    switch v := c.(type) {
+    case parser.StringCondition:
+        fields = append(fields, v.Field)
+    case parser.SetCondition:
+        fields = append(fields, v.Field)
+    case parser.AndCondition:
+        for _, child := range v.Children {
+            walk(child)
+        }
+    case parser.OrCondition:
+        for _, child := range v.Children {
+            walk(child)
+        }
+    case parser.NotCondition:
+        walk(v.Child)
+    }
+}
+walk(cond)
+// fields == ["origin", "tier"]
+```
+
+Use `parser.AsRuleCondition(cond, factOf)` instead of `parser.AsCondition` when you've kept the Condition tree (rather than going through `Parse`). Same shape; the bridge takes the typed tree directly:
+
+```go
+rule := inmemory.Rule{
+    Condition: parser.AsRuleCondition(cond, factOf),
+    Action:    func(interface{}) interface{} { return "approve" },
+}
+```
+
+`AndCondition` and `OrCondition` chains flatten -- three rules combined with `AND` produce one `AndCondition` with three children, not nested binaries. Easier to walk; sets up the indexed-matcher work in a future release.
+
+When in doubt, `Parse` still works -- it internally calls `ParseToCondition` then `AsPredicate`. Use `Parse` for evaluation, `ParseToCondition` when you need the tree.

@@ -45,6 +45,7 @@ What you can build on today:
 - **`engine.ChainProviders[RC](providers...)`.** Stable since v0.4.0. Combines multiple `RuleConfigProvider[RC]` into one; concatenates in order; first-error short-circuits.
 - **`engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)`.** Stable since v0.4.0. Standard context-key helpers for stamping a request-scoped identifier; `ConditionContext` / `ActionContext` callbacks read the ID inside `Execute`.
 - **`engine/parser` package.** Stable since v0.5.0. Compiles expression strings (`==`, `!=`, `IN`, `NOT IN`, `AND`, `OR`, `NOT`) into `Predicate`s, with `AsCondition` bridging them to `Rule.Condition`. String literals only; numeric and boolean literals stay out of scope until a real caller asks.
+- **Typed `parser.Condition` tree (`StringCondition`, `SetCondition`, `AndCondition`, `OrCondition`, `NotCondition`).** Stable since v0.6.0. `ParseToCondition` returns an inspectable / marshallable tree; `AsRuleCondition` bridges typed Conditions to `Rule.Condition`. Op constants (`OpEq`, `OpNeq`, `OpIn`, `OpNotIn`) for ergonomics.
 
 What may still change:
 
