@@ -7,9 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2022-05-27
+
+Sixth minor release. Closes Phase 3 (Expression DSL). Additive (no breaking changes from v0.5.0).
+
 ### Added
 
-_Nothing yet -- v0.5.0 just shipped. New entries land here._
+- Typed `Condition` tree in `engine/parser`. New exported types: `Condition` interface (`Eval(fact) bool`), `StringCondition`, `SetCondition`, `AndCondition`, `OrCondition`, `NotCondition`, and op constants (`OpEq`, `OpNeq`, `OpIn`, `OpNotIn`).
+- `parser.ParseToCondition(expr) (Condition, error)` returns the typed tree for inspection / marshalling / transformation.
+- `parser.AsPredicate(c)` converts a typed Condition tree to a `Predicate`.
+- `parser.AsRuleCondition(c, factOf) func(interface{}) bool` bridges a typed Condition tree directly to `Rule.Condition`.
+- AND / OR chains flatten into N-ary `AndCondition` / `OrCondition` nodes (not nested binaries), making the tree easier to walk -- groundwork for Phase 4's indexed-matcher work.
+- Cookbook gains "Inspect parsed conditions as typed trees" with a field-collector type-switch example.
+- README Stability section adds the typed Condition tree.
+
+### Internal
+
+- `engine/parser` refactored so the parser builds the Condition tree directly. The existing `Parse(expr) (Predicate, error)` signature is preserved as a thin wrapper (`ParseToCondition` + `AsPredicate`). 18 new tests cover Eval semantics, unknown-op fallback, empty-children identities, error propagation, and both bridges. 100% coverage held.
 
 ## [0.5.0] - 2022-05-20
 
