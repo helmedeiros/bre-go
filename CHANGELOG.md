@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+_Nothing yet -- v0.6.0 just shipped. New entries land here._
+
 ## [0.6.0] - 2022-05-27
 
 Sixth minor release. Closes Phase 3 (Expression DSL). Additive (no breaking changes from v0.5.0).
