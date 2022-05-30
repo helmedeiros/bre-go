@@ -54,3 +54,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0026](0026-correlation-id-propagation.md) | Correlation-ID Propagation Through Execute | ✅ Accepted |
 | [0027](0027-parser-package.md) | The Expression Parser Package | ✅ Accepted |
 | [0028](0028-typed-condition-tree.md) | Typed Condition Tree | ✅ Accepted |
+| [0029](0029-internal-adapter-notifier.md) | Internal Adapter Notifier (Listener Wiring Extraction) | ✅ Accepted |

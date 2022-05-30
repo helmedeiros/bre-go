@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/bre-go/engine"
-	"github.com/helmedeiros/bre-go/observability"
+	"github.com/helmedeiros/bre-go/engine/internal/adapter"
 )
 
 // Rule is a named, prioritized condition with an optional action.
@@ -40,8 +40,8 @@ func New() *Engine {
 // Engine evaluates rules in descending priority order and returns on
 // the first matching rule.
 type Engine struct {
-	rules     []Rule
-	listeners []observability.ExecutionListener
+	adapter.Notifier // embedded -- gives AddListener + Notify* methods
+	rules            []Rule
 }
 
 // AddRule registers r. Returns ErrEmptyRuleName when r.Name is empty,
@@ -62,12 +62,6 @@ func (e *Engine) AddRule(r Rule) error {
 	}
 	e.rules = append(e.rules, r)
 	return nil
-}
-
-// AddListener registers l for OnRuleMatched events and (via type
-// assertion at notify time) any of the lifecycle role interfaces.
-func (e *Engine) AddListener(l observability.ExecutionListener) {
-	e.listeners = append(e.listeners, l)
 }
 
 // RuleNames returns the names of every registered rule in insertion
@@ -121,12 +115,12 @@ func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result
 		ctx = context.Background()
 	}
 	start := time.Now()
-	e.notifyStarted(req.Input)
+	e.NotifyStarted(req.Input)
 
 	for _, r := range e.evaluationOrder() {
 		if err := ctx.Err(); err != nil {
-			e.notifyErrored(req.Input, err)
-			e.notifyFinished(req.Input, nil, nil, time.Since(start))
+			e.NotifyErrored(req.Input, err)
+			e.NotifyFinished(req.Input, nil, nil, time.Since(start))
 			return engine.Result{}, err
 		}
 		if !evaluateCondition(ctx, r, req.Input) {
@@ -136,18 +130,18 @@ func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result
 		if hasAction(r) {
 			output, panicErr := runAction(ctx, r, req.Input)
 			if panicErr != nil {
-				e.notifyErrored(req.Input, panicErr)
-				e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
+				e.NotifyErrored(req.Input, panicErr)
+				e.NotifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
 				return out, panicErr
 			}
 			out.Output = output
 		}
-		e.notify(r.Name, req.Input, out.Output)
-		e.notifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
+		e.NotifyMatched(r.Name, req.Input, out.Output)
+		e.NotifyFinished(req.Input, out.Output, out.Matched, time.Since(start))
 		return out, nil
 	}
 
-	e.notifyFinished(req.Input, nil, nil, time.Since(start))
+	e.NotifyFinished(req.Input, nil, nil, time.Since(start))
 	return engine.Result{}, nil
 }
 
@@ -188,33 +182,6 @@ func runAction(ctx context.Context, r Rule, input interface{}) (output interface
 	return output, nil
 }
 
-func (e *Engine) notify(rule string, input, output interface{}) {
-	m := observability.Match{Rule: rule, Input: input, Output: output}
-	for _, l := range e.listeners {
-		l.OnRuleMatched(m)
-	}
-}
-
-func (e *Engine) notifyStarted(input interface{}) {
-	for _, l := range e.listeners {
-		if started, ok := l.(observability.ExecutionStartedListener); ok {
-			started.OnExecutionStarted(input)
-		}
-	}
-}
-
-func (e *Engine) notifyFinished(input, output interface{}, matched []string, duration time.Duration) {
-	for _, l := range e.listeners {
-		if finished, ok := l.(observability.ExecutionFinishedListener); ok {
-			finished.OnExecutionFinished(input, output, matched, duration)
-		}
-	}
-}
-
-func (e *Engine) notifyErrored(input interface{}, err error) {
-	for _, l := range e.listeners {
-		if errored, ok := l.(observability.ExecutionErroredListener); ok {
-			errored.OnExecutionErrored(input, err)
-		}
-	}
-}
+// AddListener, NotifyMatched, NotifyStarted, NotifyFinished, and
+// NotifyErrored are inherited via the embedded adapter.Notifier
+// (see engine/internal/adapter/notifier.go).
