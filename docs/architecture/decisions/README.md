@@ -55,4 +55,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0027](0027-parser-package.md) | The Expression Parser Package | ✅ Accepted |
 | [0028](0028-typed-condition-tree.md) | Typed Condition Tree | ✅ Accepted |
 | [0029](0029-internal-adapter-notifier.md) | Internal Adapter Notifier (Listener Wiring Extraction) | ✅ Accepted |
-| [0030](0030-json-loader.md) | The JSON Loader Sub-Package | 🟡 Proposed |
+| [0030](0030-json-loader.md) | The JSON Loader Sub-Package | ✅ Accepted |

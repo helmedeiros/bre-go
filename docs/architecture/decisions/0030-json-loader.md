@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed — target v0.7.0. Extends ADR-0023's `RuleConfigProvider[RC]`
-abstraction with a second concrete loader, after the CSV loader from
-ADR-0024.
+Accepted — landed as the `engine/json` sub-package alongside the
+CSV loader from ADR-0024. Ships with v0.7.0. Extends ADR-0023's
+`RuleConfigProvider[RC]` abstraction.
 
 ## Context
 
