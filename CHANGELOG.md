@@ -9,7 +9,21 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet -- v0.6.0 just shipped. New entries land here._
+_Nothing yet -- v0.7.0 just shipped. New entries land here._
+
+## [0.7.0] - 2022-06-03
+
+Seventh minor release. Opens Phase 4's declarative-rule-loading second front: JSON joins CSV as a built-in rule source. Additive (no breaking changes from v0.6.0). Includes one internal-only refactor (ADR-0029) that does not affect the public surface.
+
+### Added
+
+- `engine/json` -- the second concrete `RuleConfigProvider`. `Loader[RC]` reads a top-level JSON array from a file or `io.Reader`; each element is handed to a caller-supplied `ItemParser[RC] func(item json.RawMessage) (RC, error)` so the wire-to-engine mapping stays in caller code. `LoadError.Index` is 0-indexed (natural JSON-array position); `-1` for document-level failures (file open, malformed JSON, top-level value not an array). Two constructors (`NewLoader`, `NewLoaderFromReader`) mirror `engine/csv`. Eleventh public package; 100% test coverage; ~80 LOC. ADR-0030.
+- Cookbook gains a "Load rules from a JSON file" pattern with the canonical wiring (wire-shape unmarshal → engine-internal map → `engine.Load`).
+- README Stability section adds the JSON loader; Toolkit listing names it alongside the CSV loader.
+
+### Internal
+
+- Extracted listener-wiring duplication out of `engine/inmemory`, `engine/firstmatch`, and `engine/priority` into a shared `engine/internal/adapter.Notifier` type. Each adapter `Engine` now embeds `adapter.Notifier` by value; method promotion preserves the public surface (`AddListener` is still defined on every adapter's `*Engine`). The other per-adapter helpers (`evaluateCondition`, `hasAction`, `runAction`, `copyTags`) stay duplicated on purpose -- they're typed over each adapter's local `Rule` struct. ADR-0029. No public-API change.
 
 ## [0.6.0] - 2022-05-27
 

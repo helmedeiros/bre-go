@@ -2,16 +2,16 @@
 
 A Go business rule engine with a swappable engine port.
 
-The public API is backend-agnostic. Today it ships with three in-process engines (insertion-order all-match, insertion-order first-match, priority-ordered first-match) and a CSV rule loader; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
+The public API is backend-agnostic. Today it ships with three in-process engines (insertion-order all-match, insertion-order first-match, priority-ordered first-match) and CSV + JSON rule loaders; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
 
 ## Status
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.6.0` -- sixth minor release. Three concrete adapters, **rule loading from CSV**, ten public packages, twenty-eight Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.7.0` -- seventh minor release. Three concrete adapters, **rule loading from CSV and JSON**, eleven public packages, thirty Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.6.0
+go get github.com/helmedeiros/bre-go@v0.7.0
 ```
 
 ### Upgrading from v0.1.0
@@ -42,6 +42,7 @@ What you can build on today:
 - **`context.Context` propagation through `Execute`.** Stable since v0.2.0. A nil ctx is treated as `context.Background()` for test ergonomics; production code passes the real ctx.
 - **`engine.RuleConfig`, `engine.RuleConfigProvider[RC]`, `engine.Load[RC]`.** Stable since v0.3.0. The loader abstraction; any provider that returns `[]RC` works with any adapter via the `Load` helper.
 - **`engine/csv.Loader[RC]`.** Stable since v0.3.0. Reads CSV from a file or `io.Reader`, applies a caller-supplied `LineParser` per row.
+- **`engine/json.Loader[RC]`.** Stable since v0.7.0. Reads a top-level JSON array from a file or `io.Reader`, applies a caller-supplied `ItemParser` per element (the parser receives a `json.RawMessage` and does its own wire-to-engine mapping). `LoadError.Index` is 0-indexed; `-1` for document-level failures.
 - **`engine.ChainProviders[RC](providers...)`.** Stable since v0.4.0. Combines multiple `RuleConfigProvider[RC]` into one; concatenates in order; first-error short-circuits.
 - **`engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)`.** Stable since v0.4.0. Standard context-key helpers for stamping a request-scoped identifier; `ConditionContext` / `ActionContext` callbacks read the ID inside `Execute`.
 - **`engine/parser` package.** Stable since v0.5.0. Compiles expression strings (`==`, `!=`, `IN`, `NOT IN`, `AND`, `OR`, `NOT`) into `Predicate`s, with `AsCondition` bridging them to `Rule.Condition`. String literals only; numeric and boolean literals stay out of scope until a real caller asks.
@@ -51,7 +52,7 @@ What may still change:
 
 - **Adapter-internal `Rule` struct field order.** Today's adapters keep `Name` first by convention; a future ADR could land a builder pattern that hides the struct entirely.
 - **Benchmark numbers.** No regression policy yet; numbers in `make bench` output are baselines for local comparison, not contract.
-- **Additional loader formats.** `engine/csv` is the first concrete provider; `engine/json` and `engine/yaml` are likely follow-ups when a real caller asks. The `engine.RuleConfigProvider` interface itself is stable.
+- **Additional loader formats.** `engine/csv` and `engine/json` are the first two concrete providers; an `engine/yaml` is a likely follow-up when a real caller asks. The `engine.RuleConfigProvider` interface itself is stable. NDJSON / streaming variants stay deferred.
 
 ## Quickstart
 
@@ -123,6 +124,7 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/csv`](engine/csv) | CSV-backed `engine.RuleConfigProvider`. `Loader[RC]` reads rules from a file or `io.Reader`, calls a caller-supplied `LineParser` for each row. `LoadError` carries the row number for diagnostics. |
+| [`engine/json`](engine/json) | JSON-backed `engine.RuleConfigProvider`. `Loader[RC]` reads a top-level array from a file or `io.Reader`, calls a caller-supplied `ItemParser` per element (`json.RawMessage` in, typed `RuleConfig` out). `LoadError` carries the 0-indexed array position. |
 | [`engine/parser`](engine/parser) | Expression DSL. `Parse(expr)` compiles a condition string into a `Predicate`; `AsCondition(pred, factOf)` bridges it to `Rule.Condition`. Grammar: `==` / `!=` / `IN` / `NOT IN` / `AND` / `OR` / `NOT` over string literals. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
 | [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and six built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`, `SnapshotListener` (test-helper that captures all four lifecycle events for later assertion). |

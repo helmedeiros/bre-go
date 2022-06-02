@@ -16,6 +16,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Use the typed Executor](#use-the-typed-executor)
   - [Write adapter-agnostic helpers](#write-adapter-agnostic-helpers)
   - [Load rules from a CSV file](#load-rules-from-a-csv-file)
+  - [Load rules from a JSON file](#load-rules-from-a-json-file)
   - [Compose rules from multiple sources](#compose-rules-from-multiple-sources)
   - [Propagate correlation IDs](#propagate-correlation-ids)
   - [Write rule conditions as strings](#write-rule-conditions-as-strings)
@@ -367,6 +368,70 @@ if err != nil {
 Other source shapes (embed.FS, HTTP bodies, tests with `strings.NewReader`) use `csv.NewLoaderFromReader(r, parser)` instead. The bridging closure stays identical -- the only thing that changes is where the bytes come from.
 
 `csv.LoadError` carries `Path` and 1-indexed `Row` for diagnostics. `Unwrap()` exposes the underlying error so `errors.Is` chains work normally.
+
+### Load rules from a JSON file
+
+Since `v0.7.0`, `engine/json` provides a `Loader[RC]` for JSON sources whose top level is an array of objects. The caller writes an `ItemParser` (one `json.RawMessage` in, one typed `RuleConfig` out) and the same bridging closure used with CSV.
+
+```go
+import (
+    encjson "encoding/json"
+
+    "github.com/helmedeiros/bre-go/engine"
+    bjson "github.com/helmedeiros/bre-go/engine/json"
+    "github.com/helmedeiros/bre-go/engine/priority"
+)
+
+// Caller-defined config struct. Must satisfy engine.RuleConfig.
+type TierConfig struct {
+    Name      string
+    Priority  int
+    Threshold int
+    Decision  string
+}
+
+func (c TierConfig) RuleName() string { return c.Name }
+
+// Caller-defined parser. Unmarshals each array element into a wire
+// shape, then maps it to the engine-internal struct.
+func parseTier(item encjson.RawMessage) (TierConfig, error) {
+    var wire struct {
+        Name      string `json:"name"`
+        Priority  int    `json:"priority"`
+        Threshold int    `json:"threshold"`
+        Decision  string `json:"decision"`
+    }
+    if err := encjson.Unmarshal(item, &wire); err != nil {
+        return TierConfig{}, err
+    }
+    return TierConfig{Name: wire.Name, Priority: wire.Priority, Threshold: wire.Threshold, Decision: wire.Decision}, nil
+}
+
+loader := bjson.NewLoader("rules.json", parseTier)
+eng := priority.New()
+
+err := engine.Load[TierConfig](loader, func(c TierConfig) error {
+    return eng.AddRule(priority.Rule{
+        Name:      c.Name,
+        Priority:  c.Priority,
+        Condition: func(in interface{}) bool { return in.(int) >= c.Threshold },
+        Action:    func(interface{}) interface{} { return c.Decision },
+    })
+})
+if err != nil {
+    var le *bjson.LoadError
+    if errors.As(err, &le) {
+        log.Fatalf("rules.json item %d: %v", le.Index, le.Err)
+    }
+    log.Fatal(err)
+}
+```
+
+The expected document shape is a top-level array: `[{...}, {...}]`. The element schema is whatever the `ItemParser` decodes -- the loader stays format-agnostic.
+
+`bjson.LoadError` carries `Path` and 0-indexed `Index` (natural JSON-array position); document-level failures (file open, malformed JSON, top-level value not an array) use `Index: -1`. As with `csv.LoadError`, `Unwrap()` exposes the underlying error so `errors.Is` chains work.
+
+Use `bjson.NewLoaderFromReader(r, parser)` for `embed.FS`, HTTP bodies, or tests with `strings.NewReader`. The bridging closure stays identical.
 
 ### Compose rules from multiple sources
 
