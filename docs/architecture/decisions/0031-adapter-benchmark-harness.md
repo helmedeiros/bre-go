@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed — target v0.7.1. A small, additive patch release that lands
-before v0.8.0's indexed matcher work so the baseline numbers exist
-**before** the implementation being evaluated, not alongside it.
+Accepted — landed as `engine/enginetest/bench` with `BENCHMARKS.md` at
+the repo root and a `make bench-matrix` target. Ships with v0.7.1.
+The frozen linear-adapter baselines and the v0.8.0 success bar live
+in [`BENCHMARKS.md`](../../../BENCHMARKS.md).
 
 ## Context
 

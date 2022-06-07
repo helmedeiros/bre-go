@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html bench check-adrs check-quickstart all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench bench-matrix check-adrs check-quickstart all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  cover       - run tests with coverage and enforce \$$COVER_MIN ($(COVER_MIN)%)"
 	@echo "  cover-html  - open the per-line HTML coverage report"
 	@echo "  bench       - run benchmarks across all packages"
+	@echo "  bench-matrix - run the cross-adapter benchmark matrix (engine/enginetest/bench)"
 	@echo "  check-adrs  - verify the ADR README index matches the folder"
 	@echo "  check-quickstart - build & run the README Quickstart against this checkout"
 	@echo "  all         - lint + vet + test + cover + check-adrs + check-quickstart"
@@ -79,6 +80,13 @@ cover-html: cover
 bench:
 ifneq ($(HAS_GO),)
 	$(GO) test -run=^$$ -bench=. -benchmem $(PKG)
+else
+	@echo "no go files to benchmark -- skipping"
+endif
+
+bench-matrix:
+ifneq ($(HAS_GO),)
+	$(GO) test -run=^$$ -bench=. -benchmem ./engine/enginetest/bench/...
 else
 	@echo "no go files to benchmark -- skipping"
 endif
