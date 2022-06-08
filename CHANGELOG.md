@@ -9,7 +9,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.7.1 just shipped. New entries land here._
+
+## [0.7.1] - 2022-06-06
+
+Patch release. Adds the cross-adapter performance benchmark harness ahead of v0.8.0's indexed-matcher work. No public-runtime-API changes; the new package is a test-only sibling of `engine/enginetest`.
+
+### Added
+
+- `engine/enginetest/bench` -- shared performance benchmark harness. `Workload` struct combines rule count, dimensionality, match position, and selectivity; `BasicMatcher(rules)` is the canonical 5-dimensional sparse-selectivity workload. `Run(b, w, factory)` populates the engine outside the timed section, then drives `Execute` for `b.N` iterations. Custom-adapter authors call it the same way the built-ins do. ADR-0031.
+- `BENCHMARKS.md` at the repo root: frozen baselines for `inmemory` / `firstmatch` / `priority` across the curated matrix cells, plus the pre-committed v0.8.0 success bar (≥ 10× firstmatch at 1k/5-dim NoHit; ≥ 50× at 10k/5-dim NoHit; within 2× at 10 rules) that the indexed adapter must clear to ship.
+- `make bench-matrix` target -- runs the cross-adapter matrix in isolation; the existing `make bench` keeps its per-package scope.
+- README Toolkit lists `engine/enginetest/bench`.
 
 ## [0.7.0] - 2022-06-03
 

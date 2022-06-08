@@ -8,10 +8,10 @@ The public API is backend-agnostic. Today it ships with three in-process engines
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.7.0` -- seventh minor release. Three concrete adapters, **rule loading from CSV and JSON**, eleven public packages, thirty Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.7.1` -- patch release on top of v0.7.0. Adds the shared adapter performance benchmark harness (`engine/enginetest/bench`) plus the frozen baselines in [`BENCHMARKS.md`](BENCHMARKS.md) ahead of v0.8.0's indexed-matcher work. Three concrete adapters, rule loading from CSV and JSON, eleven public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-one Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.7.0
+go get github.com/helmedeiros/bre-go@v0.7.1
 ```
 
 ### Upgrading from v0.1.0
@@ -125,6 +125,7 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/csv`](engine/csv) | CSV-backed `engine.RuleConfigProvider`. `Loader[RC]` reads rules from a file or `io.Reader`, calls a caller-supplied `LineParser` for each row. `LoadError` carries the row number for diagnostics. |
 | [`engine/json`](engine/json) | JSON-backed `engine.RuleConfigProvider`. `Loader[RC]` reads a top-level array from a file or `io.Reader`, calls a caller-supplied `ItemParser` per element (`json.RawMessage` in, typed `RuleConfig` out). `LoadError` carries the 0-indexed array position. |
+| [`engine/enginetest/bench`](engine/enginetest/bench) | Cross-adapter performance benchmark harness. `Workload` describes a matrix cell (rules × dimensions × position × selectivity); `Run` drives `engine.Engine` through `b.N` iterations after seeding rules outside the timed section. Test-only sibling to `engine/enginetest`. See [`BENCHMARKS.md`](BENCHMARKS.md) for frozen baselines. |
 | [`engine/parser`](engine/parser) | Expression DSL. `Parse(expr)` compiles a condition string into a `Predicate`; `AsCondition(pred, factOf)` bridges it to `Rule.Condition`. Grammar: `==` / `!=` / `IN` / `NOT IN` / `AND` / `OR` / `NOT` over string literals. |
 | [`engine/enginetest`](engine/enginetest) | Shared contract suite every adapter wires from a single test function. |
 | [`observability`](observability) | `Logger` and `ExecutionListener` ports, three lifecycle role interfaces (`ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`), and six built-ins: `NopLogger`, `NopExecutionListener`, `CountingListener`, `LoggingListener`, `TimingListener`, `SnapshotListener` (test-helper that captures all four lifecycle events for later assertion). |
