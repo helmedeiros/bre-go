@@ -57,4 +57,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0029](0029-internal-adapter-notifier.md) | Internal Adapter Notifier (Listener Wiring Extraction) | ✅ Accepted |
 | [0030](0030-json-loader.md) | The JSON Loader Sub-Package | ✅ Accepted |
 | [0031](0031-adapter-benchmark-harness.md) | Adapter Performance Benchmark Harness | ✅ Accepted |
-| [0032](0032-allocation-fuzz-stress-gates.md) | Allocation, Fuzz, and Stress Gates | 🟡 Proposed |
+| [0032](0032-allocation-fuzz-stress-gates.md) | Allocation, Fuzz, and Stress Gates | ✅ Accepted |

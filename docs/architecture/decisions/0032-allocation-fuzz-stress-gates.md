@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed — target v0.7.2. A second patch release on top of v0.7.0,
-landing the Go-native regression gates that complement (and do not
-duplicate) v0.7.1's advisory benchmark matrix.
+Accepted — landed in v0.7.2. Allocation tripwires gate `ci-local`;
+fuzz targets compile under `make test` and run under `make
+fuzz-quick`; stress loops run under `make stress` behind the
+`//go:build stress` tag.
 
 ## Context
 

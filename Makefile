@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html bench bench-matrix check-adrs check-quickstart all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench bench-matrix fuzz-quick stress check-adrs check-quickstart all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -17,6 +17,8 @@ help:
 	@echo "  cover-html  - open the per-line HTML coverage report"
 	@echo "  bench       - run benchmarks across all packages"
 	@echo "  bench-matrix - run the cross-adapter benchmark matrix (engine/enginetest/bench)"
+	@echo "  fuzz-quick  - run each Fuzz* target for FUZZ_SECONDS (default 30s)"
+	@echo "  stress      - run build-tagged stress tests with -race"
 	@echo "  check-adrs  - verify the ADR README index matches the folder"
 	@echo "  check-quickstart - build & run the README Quickstart against this checkout"
 	@echo "  all         - lint + vet + test + cover + check-adrs + check-quickstart"
@@ -89,6 +91,23 @@ ifneq ($(HAS_GO),)
 	$(GO) test -run=^$$ -bench=. -benchmem ./engine/enginetest/bench/...
 else
 	@echo "no go files to benchmark -- skipping"
+endif
+
+FUZZ_SECONDS ?= 30s
+
+fuzz-quick:
+ifneq ($(HAS_GO),)
+	@$(GO) test -fuzz=FuzzParse -fuzztime=$(FUZZ_SECONDS) -run=^$$ ./engine/parser/...
+	@$(GO) test -fuzz=FuzzRuleConfigsArrayShape -fuzztime=$(FUZZ_SECONDS) -run=^$$ ./engine/json/...
+else
+	@echo "no go files to fuzz -- skipping"
+endif
+
+stress:
+ifneq ($(HAS_GO),)
+	$(GO) test -tags=stress -race -count=1 -timeout=120s ./...
+else
+	@echo "no go files to stress -- skipping"
 endif
 
 check-adrs:
