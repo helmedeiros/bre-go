@@ -9,7 +9,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.7.2 just shipped. New entries land here._
+
+## [0.7.2] - 2022-06-15
+
+Patch release. Adds three Go-native regression gates that complement v0.7.1's advisory bench matrix without overlapping it. ADR-0032 Accepted. No public-runtime-API changes.
+
+### Added
+
+- **Allocation tripwires** in `engine/inmemory`, `engine/firstmatch`, `engine/priority`, and `engine/parser`. `testing.AllocsPerRun` pins the exact allocation count of each adapter's hot path (and the parser's `Parse` / `ParseToCondition`) at a fixed small workload. Tripwire-style: intentional perf changes update the constant in the same commit; unintentional changes fire the test. Gates `ci-local`.
+- **Fuzz targets**: `FuzzParse` in `engine/parser` and `FuzzRuleConfigsArrayShape` in `engine/json`. Compile under `make test` (catches API drift) but only fuzz under `make fuzz-quick` (30s per target by default; tunable via `FUZZ_SECONDS`). Seed corpora cover the grammar / JSON shapes plus known boundary inputs. Asserts no panic and only typed-error returns.
+- **Stress tests** behind `//go:build stress`: `TestExecuteSurvivesHighVolume` (100k iterations) and `TestNoGoroutineLeakUnderListenerFanout` per adapter. Run via `make stress` with `-race -count=1`. Not in `ci-local` -- release-prep gate alongside `make bench-matrix`.
+- `make fuzz-quick` and `make stress` targets. `make test` runtime increase: ~50ms total (the allocation tripwires).
 
 ## [0.7.1] - 2022-06-06
 

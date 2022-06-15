@@ -8,10 +8,10 @@ The public API is backend-agnostic. Today it ships with three in-process engines
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.7.1` -- patch release on top of v0.7.0. Adds the shared adapter performance benchmark harness (`engine/enginetest/bench`) plus the frozen baselines in [`BENCHMARKS.md`](BENCHMARKS.md) ahead of v0.8.0's indexed-matcher work. Three concrete adapters, rule loading from CSV and JSON, eleven public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-one Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.7.2` -- patch release on top of v0.7.1. Adds the three Go-native regression gates from ADR-0032: per-adapter allocation tripwires (gating `ci-local`), fuzz targets for the parser and JSON loader (`make fuzz-quick`), and build-tagged stress tests (`make stress`). Three concrete adapters, rule loading from CSV and JSON, eleven public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-two Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.7.1
+go get github.com/helmedeiros/bre-go@v0.7.2
 ```
 
 ### Upgrading from v0.1.0
