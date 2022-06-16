@@ -2,11 +2,14 @@
 
 ## Status
 
-Proposed — target v0.8.0. Fourth concrete `engine.Engine` adapter,
-the one ADR-0001 always pointed at. Must clear the v0.8.0 success
-bar in [`BENCHMARKS.md`](../../../BENCHMARKS.md) (frozen by
-ADR-0031) to ship as `v0.8.0`. If the bar is missed, the work stays
-on a branch until it is met or this ADR is renegotiated.
+Accepted — landed as `engine/indexed` in v0.8.0. All four success-bar
+cells from `BENCHMARKS.md` cleared by a wide margin: 254× at 1k/5d/NoHit
+(bar ≥10×), 230× at 1k/5d/Last (bar ≥5×), 2625× at 10k/5d/NoHit
+(bar ≥50×), and indexed is actually 0.26× the time of firstmatch
+at 10 rules (bar ≤2× slowdown), so the anti-regression cell is the
+opposite of a regression. The four `TestSuccessBar_*` tests in
+`engine/indexed/success_bar_test.go` gate the multipliers live --
+any future change that misses a row turns ci-local red.
 
 ## Context
 
@@ -211,10 +214,13 @@ for free.
      input's values at those fields. If the input is missing a field
      the key set requires, skip this key set.
    - Look up `e.buckets[keysetID].byValueKey[valueKey]`.
-   - For each candidate rule, defensively call `rule.Match.Eval(fact)`
-     — should always return true by construction; if it ever returns
-     false in production, that is a bug worth knowing about, not
-     hiding.
+   - For each candidate rule, run the action directly. **No runtime
+     Eval inside the hot path.** The `AddRule` contract (pure OpEq
+     conjunction, no duplicate fields, value-tuple-keyed bucket)
+     means every rule in the bucket already matches the value key
+     we just probed. Future ADRs that widen the indexable shape
+     re-introduce the check with their own test coverage rather than
+     leaving an unreachable defensive branch in v0.8.0.
    - On first true: run the action (with panic recovery, matching
      other adapters), notify matched + finished, return.
 4. Notify finished with empty result, return.

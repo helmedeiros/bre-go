@@ -142,6 +142,99 @@ func setup(w Workload, factory Factory) (engine.Engine, Input, error) {
 	return eng, input, nil
 }
 
+// RuleSpec is the structural form of a workload-generated rule. Where
+// SeedFunc gives the adapter an opaque condition closure, RuleSpec
+// gives it the field-to-value map the closure encodes. Adapters that
+// introspect rule shape (engine/indexed onward) use this surface.
+//
+// KeyValues lists only the dimensions the rule constrains, all under
+// equality. A non-matching rule constrains the same dimensions but
+// shifts one field's expected value to a synthetic noise marker; the
+// rule is still a pure conjunction of equality, just over different
+// values.
+type RuleSpec struct {
+	Name      string
+	KeyValues map[string]string
+}
+
+// StructuredSeedFunc registers a structurally-described rule on the
+// adapter under test. Adapters that need rule shape (indexed,
+// hybrid, future) wire this to their typed AddRule.
+type StructuredSeedFunc func(spec RuleSpec) error
+
+// StructuredFactory builds a fresh empty engine and its
+// StructuredSeedFunc.
+type StructuredFactory func() (engine.Engine, StructuredSeedFunc)
+
+// PopulateStructured is the structured counterpart of Populate. Same
+// Workload, same Input, but the per-rule callback receives the
+// rule's field-to-value map instead of a closure.
+func PopulateStructured(seed StructuredSeedFunc, w Workload) (Input, error) {
+	if w.Rules < 0 {
+		return nil, fmt.Errorf("bench: Rules must be >= 0, got %d", w.Rules)
+	}
+	if w.Dimensions < 1 {
+		return nil, fmt.Errorf("bench: Dimensions must be >= 1, got %d", w.Dimensions)
+	}
+
+	matching := matchingIndices(w)
+	matchSet := make(map[int]bool, len(matching))
+	for _, i := range matching {
+		matchSet[i] = true
+	}
+
+	input := make(Input, w.Dimensions)
+	for d := 0; d < w.Dimensions; d++ {
+		input[dimKey(d)] = matchValue(d)
+	}
+
+	for i := 0; i < w.Rules; i++ {
+		spec := RuleSpec{
+			Name:      fmt.Sprintf("rule-%d", i),
+			KeyValues: makeKeyValues(w.Dimensions, i, matchSet[i]),
+		}
+		if err := seed(spec); err != nil {
+			return nil, fmt.Errorf("bench: seed rule %d: %w", i, err)
+		}
+	}
+
+	return input, nil
+}
+
+// RunStructured benchmarks w against a structured-rule adapter built
+// by factory. Mirror of Run for adapters that introspect rule shape.
+func RunStructured(b *testing.B, w Workload, factory StructuredFactory) {
+	b.Helper()
+	eng, seed := factory()
+	input, err := PopulateStructured(seed, w)
+	if err != nil {
+		b.Fatalf("bench setup: %v", err)
+	}
+	req := engine.Request{Input: input}
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, execErr := eng.Execute(ctx, req); execErr != nil {
+			b.Fatalf("Execute: %v", execErr)
+		}
+	}
+}
+
+// makeKeyValues mirrors makeCondition's logic but produces the
+// structural form instead of the closure. The two stay in lockstep:
+// a rule produced via makeCondition and a rule produced via
+// makeKeyValues with the same arguments encode the same predicate.
+func makeKeyValues(dims, ruleIdx int, shouldMatch bool) map[string]string {
+	out := make(map[string]string, dims)
+	for d := 0; d < dims; d++ {
+		out[dimKey(d)] = matchValue(d)
+	}
+	if !shouldMatch {
+		out[dimKey(0)] = fmt.Sprintf("noise-%d-d0", ruleIdx)
+	}
+	return out
+}
+
 // makeCondition returns a closure that matches the harness's Input
 // across all dims. Non-matching rules differ on dim 0 (mismatch-first
 // gives linear adapters their fastest reject path, which keeps the

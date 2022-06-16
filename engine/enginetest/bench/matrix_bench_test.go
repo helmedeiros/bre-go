@@ -6,6 +6,8 @@ import (
 	"github.com/helmedeiros/bre-go/engine"
 	"github.com/helmedeiros/bre-go/engine/enginetest/bench"
 	"github.com/helmedeiros/bre-go/engine/firstmatch"
+	"github.com/helmedeiros/bre-go/engine/indexed"
+	"github.com/helmedeiros/bre-go/engine/parser"
 	"github.com/helmedeiros/bre-go/engine/priority"
 )
 
@@ -43,7 +45,31 @@ func priorityFactory() (engine.Engine, bench.SeedFunc) {
 	return e, seed
 }
 
-// runMatrix runs w against every adapter as a sub-benchmark.
+// IndexedFactory is the structured factory for engine/indexed. It
+// converts the harness's RuleSpec (field->value equality map) into an
+// indexed.Rule whose Match is the equivalent typed AndCondition.
+func IndexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
+	e := indexed.New()
+	seed := func(spec bench.RuleSpec) error {
+		children := make([]parser.Condition, 0, len(spec.KeyValues))
+		for k, v := range spec.KeyValues {
+			children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
+		}
+		var match parser.Condition
+		if len(children) == 1 {
+			match = children[0]
+		} else {
+			match = parser.AndCondition{Children: children}
+		}
+		return e.AddRule(indexed.Rule{Name: spec.Name, Match: match})
+	}
+	return e, seed
+}
+
+// runMatrix runs w against every linear adapter as a sub-benchmark,
+// plus the indexed adapter via the structured surface. Output of one
+// BenchmarkMatrixXxx call thus contains four lines -- one per adapter
+// -- directly comparable under benchstat.
 func runMatrix(b *testing.B, w bench.Workload) {
 	b.Helper()
 	for _, a := range adapterFactories() {
@@ -52,6 +78,9 @@ func runMatrix(b *testing.B, w bench.Workload) {
 			bench.Run(b, w, a.factory)
 		})
 	}
+	b.Run("indexed", func(b *testing.B) {
+		bench.RunStructured(b, w, IndexedFactory)
+	})
 }
 
 // The matrix cells are deliberately curated, not the full Cartesian
