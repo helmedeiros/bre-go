@@ -21,6 +21,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Propagate correlation IDs](#propagate-correlation-ids)
   - [Write rule conditions as strings](#write-rule-conditions-as-strings)
   - [Inspect parsed conditions as typed trees](#inspect-parsed-conditions-as-typed-trees)
+  - [Use the indexed adapter for large equality-based rule sets](#use-the-indexed-adapter-for-large-equality-based-rule-sets)
 
 ## Patterns
 
@@ -628,3 +629,87 @@ rule := inmemory.Rule{
 `AndCondition` and `OrCondition` chains flatten -- three rules combined with `AND` produce one `AndCondition` with three children, not nested binaries. Easier to walk; sets up the indexed-matcher work in a future release.
 
 When in doubt, `Parse` still works -- it internally calls `ParseToCondition` then `AsPredicate`. Use `Parse` for evaluation, `ParseToCondition` when you need the tree.
+
+### Use the indexed adapter for large equality-based rule sets
+
+Since `v0.8.0`, `engine/indexed` is the right adapter for **large rule sets** (hundreds to tens of thousands of rules) whose conditions are **conjunctions of equality**. `Execute` runs O(K) hash lookups where K is the number of distinct key-sets registered -- typically a small constant, independent of rule count. See [`BENCHMARKS.md`](../BENCHMARKS.md) for the cleared v0.8.0 success bar.
+
+```go
+import (
+    "context"
+
+    "github.com/helmedeiros/bre-go/engine"
+    "github.com/helmedeiros/bre-go/engine/indexed"
+    "github.com/helmedeiros/bre-go/engine/parser"
+)
+
+e := indexed.New()
+
+// Single-condition rule.
+_ = e.AddRule(indexed.Rule{
+    Name:  "brazil-only",
+    Match: parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+})
+
+// Multi-dimensional rule -- AND of equality predicates.
+_ = e.AddRule(indexed.Rule{
+    Name: "premium-brazil-flight",
+    Match: parser.AndCondition{Children: []parser.Condition{
+        parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+        parser.StringCondition{Field: "tier",    Op: parser.OpEq, Value: "premium"},
+        parser.StringCondition{Field: "product", Op: parser.OpEq, Value: "flight"},
+    }},
+    Action: func(interface{}) interface{} { return "approve" },
+})
+
+// Execute -- input must be a fact map (map[string]string preferred).
+res, _ := e.Execute(context.Background(), engine.Request{
+    Input: map[string]string{
+        "country": "BR",
+        "tier":    "premium",
+        "product": "flight",
+    },
+})
+// res.Matched -> ["brazil-only"]  (first-match semantics; the
+// single-field key-set was registered first, so it wins the tie.)
+```
+
+**What's indexable:**
+
+- `parser.StringCondition{Op: OpEq, ...}` -- yes.
+- `parser.AndCondition` whose children are all `OpEq` `StringCondition`s -- yes.
+- `OpNeq`, `OpIn`, `OpNotIn`, `OrCondition`, `NotCondition`, `SetCondition` -- **no**, `AddRule` returns `ErrNonIndexableCondition`. Use one of the linear adapters for those shapes.
+
+**Input shape:**
+
+`Execute` accepts `map[string]string` (the canonical "fact" shape) or `map[string]interface{}` (values stringified via `fmt.Sprintf("%v", ...)`). Anything else returns `ErrIncompatibleInput`. The linear adapters happily accept any `interface{}` because their conditions are opaque closures; the indexed adapter cannot.
+
+**When to use:**
+
+- Many rules (>100) with the same handful of equality dimensions -- routing tables, decision tables, tariff lookups.
+- Sub-millisecond per-call latency matters.
+
+**When not to use:**
+
+- Range queries, regex matches, custom logic -- use `engine/firstmatch` or `engine/priority` with parser-DSL-or-closure conditions.
+- Small rule sets (<50) where the linear adapters are already fast enough -- the indexed adapter is competitive but the gain is small; the constraint on rule shape is the real cost.
+
+**Loading from CSV/JSON:**
+
+The CSV and JSON loaders (`engine/csv`, `engine/json`) work with any `engine.RuleConfigProvider`. To load into `engine/indexed`, the caller's `engine.Load` wiring builds `parser.Condition`s from the loaded config:
+
+```go
+err := engine.Load[TierConfig](loader, func(c TierConfig) error {
+    children := []parser.Condition{
+        parser.StringCondition{Field: "country", Op: parser.OpEq, Value: c.Country},
+        parser.StringCondition{Field: "tier",    Op: parser.OpEq, Value: c.Tier},
+    }
+    return e.AddRule(indexed.Rule{
+        Name:   c.Name,
+        Match:  parser.AndCondition{Children: children},
+        Action: func(interface{}) interface{} { return c.Decision },
+    })
+})
+```
+
+The same `ChainProviders` and correlation-ID helpers work unchanged.

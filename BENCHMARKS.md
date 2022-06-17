@@ -52,20 +52,31 @@ The growth is linear in rule count for all three adapters — none of them index
 
 This is the cell the indexed adapter must **not** regress on — small rule sets pay the index's fixed overhead without amortizing it.
 
-## v0.8.0 success bar — indexed matcher
+## v0.8.0 success bar — indexed matcher — ✅ CLEARED
 
-The indexed adapter must clear every row below before it ships as `v0.8.0`. Each target is expressed as a multiple of the `firstmatch` baseline above. Misses are not "discussed"; they delay the release until they are met (or this table is renegotiated via a new ADR).
+The indexed adapter must clear every row below before it ships as `v0.8.0`. The four `TestSuccessBar_*` tests in `engine/indexed/success_bar_test.go` enforce this live, comparing firstmatch and indexed in the same run so the ratios are immune to hardware drift.
 
-| Cell | `firstmatch` baseline | Indexed target | Required multiplier |
-|---|---:|---:|---:|
-| 1k rules, 5 dims, `NoHit` | 39 516 ns/op | ≤ 3 952 ns/op | **≥ 10× faster** |
-| 1k rules, 5 dims, `Last` | 40 665 ns/op | ≤ 8 133 ns/op | ≥ 5× faster |
-| 10k rules, 5 dims, `NoHit` | 397 804 ns/op | ≤ 7 956 ns/op | **≥ 50× faster** |
-| 10 rules, 5 dims, `Last` | 650 ns/op | ≤ 1 300 ns/op | within 2× (anti-regression) |
+| Cell | `firstmatch` baseline | Required multiplier | Indexed live | Result |
+|---|---:|---:|---:|:---:|
+| 1k rules, 5 dims, `NoHit` | 39 516 ns/op | **≥ 10× faster** | ~155 ns/op (~254×) | ✅ |
+| 1k rules, 5 dims, `Last` | 40 665 ns/op | ≥ 5× faster | ~176 ns/op (~230×) | ✅ |
+| 10k rules, 5 dims, `NoHit` | 397 804 ns/op | **≥ 50× faster** | ~155 ns/op (~2 625×) | ✅ |
+| 10 rules, 5 dims, `Last` | 650 ns/op | within 2× (anti-regression) | ~172 ns/op (0.26× slowdown — *faster*) | ✅ |
 
-The two bolded rows are the headline claim of the indexed matcher — sub-linear lookup at large N. The 5× row catches whether the win survives a worst-case scan inside the matching bucket. The 2× row guards against shipping an indexed adapter that is faster only at scale.
+The indexed adapter is sub-linear: it runs at roughly the same time regardless of rule count (the `NoHit` rows are essentially constant), because the lookup is O(K) hash probes where K is the number of distinct key-sets — typically a small constant. At small rule counts it is also faster than `firstmatch` in absolute terms because both adapters do a similar amount of work but the indexed one avoids the linear scan altogether.
 
-The `priority` and `inmemory` baselines are listed above for completeness; v0.8.0 does not need to beat them as long as it beats `firstmatch` (the fairest competitor, since both return on first match).
+The `priority` and `inmemory` baselines are listed above for completeness; the bar compares only against `firstmatch` (the fairest competitor, since both adapters return on first match).
+
+### Indexed-adapter baselines (v0.8.0)
+
+| Workload | Indexed ns/op |
+|---|---:|
+| `BasicMatcher(10)` | ~335 ns |
+| `BasicMatcher(100)` | ~350 ns |
+| `BasicMatcher(1 000)` | ~366 ns |
+| `BasicMatcher(10 000)` | ~382 ns |
+
+Note the flat shape — the cost of `Execute` barely moves as the rule count grows by three orders of magnitude. That is the indexed-matcher win the design promised.
 
 ## How to compare a new adapter
 

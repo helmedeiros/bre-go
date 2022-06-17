@@ -2,16 +2,16 @@
 
 A Go business rule engine with a swappable engine port.
 
-The public API is backend-agnostic. Today it ships with three in-process engines (insertion-order all-match, insertion-order first-match, priority-ordered first-match) and CSV + JSON rule loaders; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
+The public API is backend-agnostic. Today it ships with four in-process engines (insertion-order all-match, insertion-order first-match, priority-ordered first-match, and an indexed sub-linear matcher for equality-conjunction rules) and CSV + JSON rule loaders; the long-term goal is to plug a mature open-source rule engine in behind the same interface so callers never have to change their code.
 
 ## Status
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.7.2` -- patch release on top of v0.7.1. Adds the three Go-native regression gates from ADR-0032: per-adapter allocation tripwires (gating `ci-local`), fuzz targets for the parser and JSON loader (`make fuzz-quick`), and build-tagged stress tests (`make stress`). Three concrete adapters, rule loading from CSV and JSON, eleven public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-two Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
+`v0.8.0` -- eighth minor release. **Headline: the sub-linear `engine/indexed` adapter.** For rule sets expressible as conjunctions of equality predicates, `Execute` is now O(K) hash lookups where K is the number of distinct key-sets — typically a small constant, independent of rule count. The v0.8.0 cut clears every `BENCHMARKS.md` success-bar row by 10× to 2500× depending on cell (see [`BENCHMARKS.md`](BENCHMARKS.md)). Four concrete adapters now, rule loading from CSV and JSON, twelve public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-three Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md). The full design record and the current status of each ADR live in [`docs/architecture/decisions/`](docs/architecture/decisions/).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.7.2
+go get github.com/helmedeiros/bre-go@v0.8.0
 ```
 
 ### Upgrading from v0.1.0
@@ -47,6 +47,7 @@ What you can build on today:
 - **`engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)`.** Stable since v0.4.0. Standard context-key helpers for stamping a request-scoped identifier; `ConditionContext` / `ActionContext` callbacks read the ID inside `Execute`.
 - **`engine/parser` package.** Stable since v0.5.0. Compiles expression strings (`==`, `!=`, `IN`, `NOT IN`, `AND`, `OR`, `NOT`) into `Predicate`s, with `AsCondition` bridging them to `Rule.Condition`. String literals only; numeric and boolean literals stay out of scope until a real caller asks.
 - **Typed `parser.Condition` tree (`StringCondition`, `SetCondition`, `AndCondition`, `OrCondition`, `NotCondition`).** Stable since v0.6.0. `ParseToCondition` returns an inspectable / marshallable tree; `AsRuleCondition` bridges typed Conditions to `Rule.Condition`. Op constants (`OpEq`, `OpNeq`, `OpIn`, `OpNotIn`) for ergonomics.
+- **`engine/indexed.Engine`.** Stable since v0.8.0. Sub-linear first-match adapter. Rules carry `Match parser.Condition` (pure conjunctions of `OpEq` `StringCondition`s; AddRule rejects anything else with `ErrNonIndexableCondition`). Execute is O(K) hash lookups where K is the number of distinct key-sets registered. Live perf-bar tests gate any future change that would weaken the headline claim.
 
 What may still change:
 
@@ -108,10 +109,11 @@ func main() {
 | [`engine/inmemory`](engine/inmemory) | Evaluate every rule in insertion order; last matching action wins on `Output`; every match appears in `Matched`. | You want all decisions a rule set produces, accumulate counts via a listener, or run a "every rule should fire if applicable" policy. |
 | [`engine/firstmatch`](engine/firstmatch) | Evaluate in insertion order; return on the first matching rule. Later rules are never evaluated and their actions never run. | You have a decision table, a content classifier, or a "first applicable rate" policy where rule order encodes precedence positionally. |
 | [`engine/priority`](engine/priority) | Evaluate in descending `Priority` order (ties broken by insertion); return on the first matching rule. | You load rules from a config file or compose them from multiple sources, and precedence belongs in the data (not in `AddRule` call order). |
+| [`engine/indexed`](engine/indexed) | Sub-linear first-match. Rules are bucketed by their equality key-set + value-tuple; `Execute` runs O(K) hash lookups where K is the number of distinct key-sets. Rules must be pure conjunctions of equality (`parser.StringCondition{Op: OpEq}`); input must be `map[string]string` or `map[string]interface{}`. | You have a large rule set (hundreds to tens of thousands of rules) shaped as routing-table / decision-table equality matches, and per-call latency matters. See [`BENCHMARKS.md`](BENCHMARKS.md) for the cleared v0.8.0 success bar. |
 
-All three adapters share the same `Rule`-shape skeleton (`Name`, optional `Description`, optional `Tags`, `Condition`, `Action`; `priority.Rule` additionally carries `Priority int`), the same registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`), satisfy `engine.ListenerHost` (so the observability built-ins `CountingListener`, `LoggingListener`, and `TimingListener` attach to any of them with `e.AddListener(...)`) plus `engine.RuleLister` (cheap `RuleNames()` for "what's in here?") plus `engine.RuleInfoLister` (richer `RuleInfos()` returning `RuleInfo{Name, Description, Tags}` for catalog endpoints), and recover panicking `Action`s into a typed `ActionPanicError` (with `RuleName()` for diagnostics) plus an `OnExecutionErrored` callback on listeners that opt in -- one buggy rule cannot crash the host process.
+The three linear adapters share the same `Rule`-shape skeleton (`Name`, optional `Description`, optional `Tags`, `Condition`, `Action`; `priority.Rule` additionally carries `Priority int`), the same registration validation (`ErrEmptyRuleName`, `ErrNilCondition`, `ErrDuplicateRuleName`), satisfy `engine.ListenerHost` (so the observability built-ins `CountingListener`, `LoggingListener`, and `TimingListener` attach to any of them with `e.AddListener(...)`) plus `engine.RuleLister` (cheap `RuleNames()` for "what's in here?") plus `engine.RuleInfoLister` (richer `RuleInfos()` returning `RuleInfo{Name, Description, Tags}` for catalog endpoints), and recover panicking `Action`s into a typed `ActionPanicError` (with `RuleName()` for diagnostics) plus an `OnExecutionErrored` callback on listeners that opt in -- one buggy rule cannot crash the host process. `engine/indexed` shares the same listener / introspection / panic-recovery surface; its rule shape uses `Match parser.Condition` (typed) instead of an opaque `Condition` closure, and AddRule rejects non-equality conditions with `ErrNonIndexableCondition`.
 
-The same `enginetest.RunContractTests` suite runs against all three -- port-level behavior is identical, only the multi-rule policy differs.
+The same `enginetest.RunContractTests` suite runs against the three linear adapters -- port-level behavior is identical, only the multi-rule policy differs. `engine/indexed` has its own typed-condition test battery plus the four `TestSuccessBar_*` tests that enforce its perf claim live.
 
 For more patterns (listener composition, error handling, typed `Executor`, debug endpoints, adapter-agnostic helpers), see the [Cookbook](docs/cookbook.md).
 
@@ -120,7 +122,8 @@ For more patterns (listener composition, error handling, typed `Executor`, debug
 | Package | What it gives you |
 |---------|-------------------|
 | [`engine`](engine) | The `Engine` port, `Request`/`Result`/`RuleInfo` value types, the `ListenerHost`/`RuleLister`/`RuleInfoLister` optional capability interfaces, plus loader (`RuleConfig`, `RuleConfigProvider`, `Load`, `ChainProviders`) and correlation (`WithCorrelationID`, `CorrelationIDFromContext`) helpers. |
-| [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch), [`engine/priority`](engine/priority) | Three concrete adapters with different policies along two axes: ordering (insertion vs priority) and match policy (all vs first). |
+| [`engine/inmemory`](engine/inmemory), [`engine/firstmatch`](engine/firstmatch), [`engine/priority`](engine/priority) | Three linear-scan adapters with different policies along two axes: ordering (insertion vs priority) and match policy (all vs first). |
+| [`engine/indexed`](engine/indexed) | Sub-linear first-match adapter for conjunctions of equality predicates. Rule shape is a typed `parser.Condition`; input is a fact map. O(K) `Execute` where K = distinct key-sets, independent of rule count. Ships with live perf-bar tests; see [`BENCHMARKS.md`](BENCHMARKS.md). |
 | [`engine/conditions`](engine/conditions) | Boolean combinators (`And`, `Or`, `Not`) and sentinels (`Always`, `Never`) for declarative rule composition. |
 | [`engine/exec`](engine/exec) | Generic `Executor[In, Out]` wrapper over any `engine.Engine`. Hides the `interface{}` cast at the call boundary; works with both shipped adapters and any future one. Requires Go 1.18. |
 | [`engine/csv`](engine/csv) | CSV-backed `engine.RuleConfigProvider`. `Loader[RC]` reads rules from a file or `io.Reader`, calls a caller-supplied `LineParser` for each row. `LoadError` carries the row number for diagnostics. |

@@ -9,7 +9,30 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.8.0 just shipped. New entries land here._
+
+## [0.8.0] - 2022-06-17
+
+Eighth minor release. Headline: the sub-linear `engine/indexed` adapter -- ADR-0001's eventual production path, finally landed. For rule sets expressible as conjunctions of equality predicates, `Execute` runs O(K) hash lookups where K is the number of distinct key-sets, independent of rule count. Additive (no breaking changes from v0.7.x).
+
+### Added
+
+- `engine/indexed` -- fourth concrete `engine.Engine` adapter, and the first sub-linear one. Rules use `Match parser.Condition` (typed AST from ADR-0028) instead of an opaque closure; `AddRule` rejects anything that is not a pure conjunction of `OpEq` `StringCondition`s with `ErrNonIndexableCondition`. Rules are bucketed by `(key-set, value-tuple)`; first-match semantics; insertion order breaks ties. Input must be `map[string]string` or `map[string]interface{}` (other shapes return `ErrIncompatibleInput`). New sentinels: `ErrEmptyRuleName`, `ErrNilMatch`, `ErrDuplicateRuleName`, `ErrNonIndexableCondition`, `ErrIncompatibleInput`. Embeds `engine/internal/adapter.Notifier` per ADR-0029. Twelfth public package; 100% test coverage. ADR-0033.
+- `engine/indexed/success_bar_test.go` -- four `TestSuccessBar_*` tests that run `firstmatch` and `indexed` live and assert the multipliers committed in `BENCHMARKS.md`. Gates `ci-local`: any future change that drops the indexed adapter below `≥10×` at 1k/5d/NoHit, `≥5×` at 1k/5d/Last, `≥50×` at 10k/5d/NoHit, or above `2×` slowdown at 10 rules turns the build red.
+- `engine/indexed/allocs_test.go` and `engine/indexed/stress_test.go` -- the standard alloc-tripwire (frozen at 2 allocs/op) and `//go:build stress` 100k-iteration loops per ADR-0032's pattern.
+- `engine/enginetest/bench` gains `RuleSpec`, `StructuredSeedFunc`, `StructuredFactory`, `PopulateStructured`, `RunStructured`. The existing closure-based surface stays unchanged; adapters that introspect rule shape (indexed, and future variants) wire through the structured surface. `matrix_bench_test.go` now runs the indexed adapter alongside the three linear adapters in every matrix cell.
+- README Stability + adapter table + Toolkit list all gain `engine/indexed`; `BENCHMARKS.md` records the cleared success bar with the indexed adapter's flat-cost profile (~155-380 ns/op across all four rule-count tiers).
+
+### Measured
+
+The indexed adapter clears every `BENCHMARKS.md` success-bar row by orders of magnitude. Live multipliers vs `firstmatch` on Apple M4 / Go 1.18:
+
+| Cell | Required | Measured | |
+|---|---:|---:|:--|
+| 1k / 5d / NoHit | ≥ 10× faster | 254× faster | ✅ |
+| 1k / 5d / Last | ≥ 5× faster | 230× faster | ✅ |
+| 10k / 5d / NoHit | ≥ 50× faster | 2 625× faster | ✅ |
+| 10 rules / 5d | ≤ 2× slowdown | 0.26× (faster, not slower) | ✅ |
 
 ## [0.7.2] - 2022-06-15
 
