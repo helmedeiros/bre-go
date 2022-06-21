@@ -59,4 +59,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0031](0031-adapter-benchmark-harness.md) | Adapter Performance Benchmark Harness | ✅ Accepted |
 | [0032](0032-allocation-fuzz-stress-gates.md) | Allocation, Fuzz, and Stress Gates | ✅ Accepted |
 | [0033](0033-indexed-adapter.md) | The Indexed Adapter | ✅ Accepted |
-| [0034](0034-indexed-set-membership-and-wildcards.md) | Set-Membership and Wildcard Semantics in engine/indexed | 🟡 Proposed |
+| [0034](0034-indexed-set-membership-and-wildcards.md) | Set-Membership and Wildcard Semantics in engine/indexed | ✅ Accepted |

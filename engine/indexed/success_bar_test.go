@@ -40,9 +40,12 @@ func firstmatchFactory() (engine.Engine, bench.SeedFunc) {
 func indexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 	e := indexed.New()
 	seed := func(spec bench.RuleSpec) error {
-		children := make([]parser.Condition, 0, len(spec.KeyValues))
+		children := make([]parser.Condition, 0, len(spec.KeyValues)+len(spec.InValues))
 		for k, v := range spec.KeyValues {
 			children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
+		}
+		for k, vs := range spec.InValues {
+			children = append(children, parser.SetCondition{Field: k, Op: parser.OpIn, Values: vs})
 		}
 		var match parser.Condition
 		if len(children) == 1 {
@@ -137,4 +140,42 @@ func TestSuccessBar_10Rules5DimLast_WithinTwoX(t *testing.T) {
 	}
 	w := bench.Workload{Rules: 10, Dimensions: 5, Position: bench.Last, Selectivity: bench.Unique}
 	assertAntiRegression(t, "10/5d/Last", w, 2.0)
+}
+
+// ---- v0.9.0 (ADR-0034) -----------------------------------------------
+
+// TestSuccessBar_OpIn_1k5DimLast_AtLeast5x: 1k rules where 2 of 5
+// dimensions are OpIn with 3 values each. Indexed must still beat
+// firstmatch by >= 5x on Last position. This is BENCHMARKS.md's
+// new v0.9.0 cell.
+func TestSuccessBar_OpIn_1k5DimLast_AtLeast5x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:         1000,
+		Dimensions:    5,
+		Position:      bench.Last,
+		Selectivity:   bench.Unique,
+		OpInDims:      2,
+		OpInValuesPer: 3,
+	}
+	assertSpeedup(t, "1k/5d/2-of-5-OpIn-3vals/Last", w, 5.0)
+}
+
+// TestSuccessBar_OpIn_10k5DimNoHit_AtLeast50x: same workload as the
+// v0.8.0 10k-NoHit cell but with OpIn dims. Bar holds.
+func TestSuccessBar_OpIn_10k5DimNoHit_AtLeast50x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:         10000,
+		Dimensions:    5,
+		Position:      bench.NoHit,
+		Selectivity:   bench.Unique,
+		OpInDims:      2,
+		OpInValuesPer: 3,
+	}
+	assertSpeedup(t, "10k/5d/2-of-5-OpIn-3vals/NoHit", w, 50.0)
 }

@@ -48,11 +48,19 @@ const (
 
 // Workload encodes one matrix cell. Zero-value is invalid (Rules and
 // Dimensions must be >= 1 in the common case; Populate validates).
+//
+// OpInDims and OpInValuesPer are v0.9.0+ extensions (ADR-0034) that
+// turn the first OpInDims dimensions into set-membership constraints
+// instead of plain equality. OpInValuesPer is the number of values
+// in each such set; the matching input value is the first value of
+// the set, so the rule still matches.
 type Workload struct {
-	Rules       int
-	Dimensions  int
-	Position    MatchPosition
-	Selectivity Selectivity
+	Rules         int
+	Dimensions    int
+	Position      MatchPosition
+	Selectivity   Selectivity
+	OpInDims      int
+	OpInValuesPer int
 }
 
 // BasicMatcher is the canonical workload: 5-dimensional equality
@@ -124,7 +132,7 @@ func Populate(seed SeedFunc, w Workload) (Input, error) {
 
 	for i := 0; i < w.Rules; i++ {
 		name := fmt.Sprintf("rule-%d", i)
-		cond := makeCondition(w.Dimensions, i, matchSet[i])
+		cond := makeCondition(w, i, matchSet[i])
 		if err := seed(name, cond); err != nil {
 			return nil, fmt.Errorf("bench: seed rule %d: %w", i, err)
 		}
@@ -147,14 +155,19 @@ func setup(w Workload, factory Factory) (engine.Engine, Input, error) {
 // gives it the field-to-value map the closure encodes. Adapters that
 // introspect rule shape (engine/indexed onward) use this surface.
 //
-// KeyValues lists only the dimensions the rule constrains, all under
-// equality. A non-matching rule constrains the same dimensions but
-// shifts one field's expected value to a synthetic noise marker; the
-// rule is still a pure conjunction of equality, just over different
-// values.
+// KeyValues lists fields the rule constrains under equality.
+// InValues (added in v0.9.0 for ADR-0034) lists fields the rule
+// constrains under OpIn set-membership; each entry's value slice is
+// the accepted-values set. KeyValues and InValues have disjoint
+// keys by construction.
+//
+// A non-matching rule constrains the same dimensions but shifts one
+// field's expected value to a synthetic noise marker; the rule shape
+// is unchanged, just the values move.
 type RuleSpec struct {
 	Name      string
 	KeyValues map[string]string
+	InValues  map[string][]string
 }
 
 // StructuredSeedFunc registers a structurally-described rule on the
@@ -189,9 +202,11 @@ func PopulateStructured(seed StructuredSeedFunc, w Workload) (Input, error) {
 	}
 
 	for i := 0; i < w.Rules; i++ {
+		eq, in := makeSpecValues(w, i, matchSet[i])
 		spec := RuleSpec{
 			Name:      fmt.Sprintf("rule-%d", i),
-			KeyValues: makeKeyValues(w.Dimensions, i, matchSet[i]),
+			KeyValues: eq,
+			InValues:  in,
 		}
 		if err := seed(spec); err != nil {
 			return nil, fmt.Errorf("bench: seed rule %d: %w", i, err)
@@ -220,45 +235,116 @@ func RunStructured(b *testing.B, w Workload, factory StructuredFactory) {
 	}
 }
 
-// makeKeyValues mirrors makeCondition's logic but produces the
-// structural form instead of the closure. The two stay in lockstep:
-// a rule produced via makeCondition and a rule produced via
-// makeKeyValues with the same arguments encode the same predicate.
-func makeKeyValues(dims, ruleIdx int, shouldMatch bool) map[string]string {
-	out := make(map[string]string, dims)
+// makeSpecValues mirrors makeCondition's logic but produces the
+// structural form: an equality map plus an OpIn map. The two stay in
+// lockstep -- a rule built from makeCondition and a rule built from
+// makeSpecValues with the same arguments encode the same predicate.
+//
+// Returns (KeyValues, InValues). When w.OpInDims == 0, InValues is
+// nil (no OpIn dims) and the function behaves the same as the
+// v0.8.0 makeKeyValues helper it replaces.
+func makeSpecValues(w Workload, ruleIdx int, shouldMatch bool) (map[string]string, map[string][]string) {
+	dims := w.Dimensions
+	opInDims := w.OpInDims
+	if opInDims > dims {
+		opInDims = dims
+	}
+
+	eq := make(map[string]string, dims-opInDims)
+	var in map[string][]string
+	if opInDims > 0 {
+		in = make(map[string][]string, opInDims)
+	}
+
 	for d := 0; d < dims; d++ {
-		out[dimKey(d)] = matchValue(d)
+		if d < opInDims {
+			in[dimKey(d)] = makeOpInValues(d, w.OpInValuesPer)
+		} else {
+			eq[dimKey(d)] = matchValue(d)
+		}
 	}
 	if !shouldMatch {
-		out[dimKey(0)] = fmt.Sprintf("noise-%d-d0", ruleIdx)
+		if opInDims > 0 {
+			in[dimKey(0)] = []string{fmt.Sprintf("noise-%d-d0", ruleIdx)}
+		} else {
+			eq[dimKey(0)] = fmt.Sprintf("noise-%d-d0", ruleIdx)
+		}
 	}
-	return out
+	return eq, in
 }
 
 // makeCondition returns a closure that matches the harness's Input
 // across all dims. Non-matching rules differ on dim 0 (mismatch-first
 // gives linear adapters their fastest reject path, which keeps the
 // linear baseline tight rather than artificially slow).
-func makeCondition(dims, ruleIdx int, shouldMatch bool) func(input interface{}) bool {
-	expected := make([]string, dims)
+//
+// When w.OpInDims > 0, the first OpInDims dims are evaluated as
+// set-membership instead of plain equality, matching the rule shape
+// the structured (indexed) adapter sees.
+func makeCondition(w Workload, ruleIdx int, shouldMatch bool) func(input interface{}) bool {
+	dims := w.Dimensions
+	opInDims := w.OpInDims
+	if opInDims > dims {
+		opInDims = dims
+	}
+
+	eqExpected := make([]string, dims)
+	inExpected := make([][]string, opInDims)
 	for d := 0; d < dims; d++ {
-		expected[d] = matchValue(d)
+		if d < opInDims {
+			inExpected[d] = makeOpInValues(d, w.OpInValuesPer)
+		} else {
+			eqExpected[d] = matchValue(d)
+		}
 	}
 	if !shouldMatch {
-		expected[0] = fmt.Sprintf("noise-%d-d0", ruleIdx)
+		if opInDims > 0 {
+			inExpected[0] = []string{fmt.Sprintf("noise-%d-d0", ruleIdx)}
+		} else {
+			eqExpected[0] = fmt.Sprintf("noise-%d-d0", ruleIdx)
+		}
 	}
+
 	return func(in interface{}) bool {
 		m, ok := in.(Input)
 		if !ok {
 			return false
 		}
-		for d := 0; d < dims; d++ {
-			if m[dimKey(d)] != expected[d] {
+		for d := 0; d < opInDims; d++ {
+			actual := m[dimKey(d)]
+			hit := false
+			for _, v := range inExpected[d] {
+				if v == actual {
+					hit = true
+					break
+				}
+			}
+			if !hit {
+				return false
+			}
+		}
+		for d := opInDims; d < dims; d++ {
+			if m[dimKey(d)] != eqExpected[d] {
 				return false
 			}
 		}
 		return true
 	}
+}
+
+// makeOpInValues returns the OpIn value set for dim d. First entry
+// is the matching value (matchValue(d)); the rest are synthetic
+// non-matching alternatives so the set has the requested cardinality.
+func makeOpInValues(d, n int) []string {
+	if n < 1 {
+		n = 1
+	}
+	out := make([]string, n)
+	out[0] = matchValue(d)
+	for i := 1; i < n; i++ {
+		out[i] = fmt.Sprintf("opin-%d-alt%d", d, i)
+	}
+	return out
 }
 
 func matchingIndices(w Workload) []int {

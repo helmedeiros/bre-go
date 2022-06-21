@@ -25,6 +25,14 @@ import (
 // cannot collide with field names or values.
 const unitSeparator = "\x1f"
 
+// maxFanout caps the bucket-expansion cost of a single rule whose
+// Match contains OpIn set-membership conditions. ADR-0034 §3 picked
+// 1024 empirically; future ADR revises if a real workload runs into
+// the cap. A rule exceeding it returns *FanoutTooLargeError at
+// AddRule -- caller fixes the rule rather than the engine eating
+// unbounded memory.
+const maxFanout = 1024
+
 // Rule is a typed-Condition rule for the indexed adapter. Description
 // and Tags surface through engine.RuleInfoLister; they do not
 // influence Execute. Match must be a pure conjunction of OpEq
@@ -83,9 +91,15 @@ type indexedRule struct {
 }
 
 // AddRule registers r. Returns ErrEmptyRuleName / ErrNilMatch /
-// ErrDuplicateRuleName / ErrNonIndexableCondition depending on which
-// shape invariant the rule violates. Checks run shape-first,
-// state-second (matches the existing adapters' ordering).
+// ErrDuplicateRuleName / ErrNonIndexableCondition / *FanoutTooLargeError
+// depending on which shape invariant the rule violates. Checks run
+// shape-first, state-second.
+//
+// A rule whose Match contains OpIn set-membership conditions
+// expands into a Cartesian product of bucket entries -- one per
+// combination of values. Empty value sets, duplicate fields, and
+// fan-outs exceeding maxFanout are rejected. See ADR-0034 §1 for
+// the fan-out rationale.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
@@ -93,22 +107,25 @@ func (e *Engine) AddRule(r Rule) error {
 	if r.Match == nil {
 		return ErrNilMatch
 	}
-	pairs, err := extractEqualityPairs(r.Match)
+	sets, err := extractIndexablePairs(r.Match)
 	if err != nil {
 		return err
+	}
+	fanout := cartesianFanout(sets)
+	if fanout > maxFanout {
+		return &FanoutTooLargeError{Rule: r.Name, Cardinality: fanout, Limit: maxFanout}
 	}
 	if _, dup := e.ruleNames[r.Name]; dup {
 		return ErrDuplicateRuleName
 	}
 
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].field < pairs[j].field })
+	sort.Slice(sets, func(i, j int) bool { return sets[i].field < sets[j].field })
 
-	fields := make([]string, len(pairs))
-	for i, p := range pairs {
-		fields[i] = p.field
+	fields := make([]string, len(sets))
+	for i, s := range sets {
+		fields[i] = s.field
 	}
 	keysetID := strings.Join(fields, unitSeparator)
-	valueKey := buildValueKey(pairs)
 
 	bucket, ok := e.buckets[keysetID]
 	if !ok {
@@ -118,11 +135,13 @@ func (e *Engine) AddRule(r Rule) error {
 	}
 
 	e.rulesInOrder = append(e.rulesInOrder, r)
-	bucket.byValueKey[valueKey] = append(bucket.byValueKey[valueKey], indexedRule{
-		name:   r.Name,
-		action: r.Action,
-		ctxAct: r.ActionContext,
+	ir := indexedRule{name: r.Name, action: r.Action, ctxAct: r.ActionContext}
+
+	enumerateCombinations(sets, func(combo []fieldValuePair) {
+		vk := buildValueKey(combo)
+		bucket.byValueKey[vk] = append(bucket.byValueKey[vk], ir)
 	})
+
 	e.ruleNames[r.Name] = struct{}{}
 	return nil
 }
@@ -241,62 +260,88 @@ func runAction(ctx context.Context, r indexedRule, input interface{}) (output in
 	return output, nil
 }
 
-// fieldValuePair is a (field, value) pair extracted from a typed
-// Condition. Held in slice form so canonical sorting is cheap.
+// fieldValuePair is a single (field, value) pair -- the "flat" form
+// used as a step in building a bucket value key.
 type fieldValuePair struct {
 	field string
 	value string
 }
 
-// extractEqualityPairs walks Match and returns its (field, value)
-// pairs iff Match is a pure conjunction of OpEq StringConditions.
-// Anything else returns ErrNonIndexableCondition.
-func extractEqualityPairs(c parser.Condition) ([]fieldValuePair, error) {
-	var out []fieldValuePair
-	if err := collectPairs(c, &out); err != nil {
+// fieldValueSet groups a field with the set of values it constrains.
+// Length-1 values is the OpEq shape; length-N is OpIn.
+type fieldValueSet struct {
+	field  string
+	values []string
+}
+
+// extractIndexablePairs walks Match and returns one fieldValueSet
+// per constrained field. Match must be a conjunction whose children
+// are each an OpEq StringCondition or an OpIn SetCondition. Anything
+// else (OpNeq, OpNotIn, Or, Not, range predicates, custom shapes,
+// empty value sets, duplicate fields) returns ErrNonIndexableCondition.
+//
+// The values list of each returned set is canonicalized: sorted and
+// deduplicated. This keeps the keyset / valueKey computation stable
+// regardless of the source order.
+func extractIndexablePairs(c parser.Condition) ([]fieldValueSet, error) {
+	var out []fieldValueSet
+	if err := collectSets(c, &out); err != nil {
 		return nil, err
 	}
 	if len(out) == 0 {
 		return nil, ErrNonIndexableCondition
 	}
-	// Reject duplicate fields within the same conjunction -- the
-	// semantics ("field A == X AND field A == Y") are well-defined
-	// (always false unless X == Y), but indexing them is not. Force
-	// the caller to fix the rule.
 	seen := make(map[string]struct{}, len(out))
-	for _, p := range out {
-		if _, dup := seen[p.field]; dup {
+	for i, s := range out {
+		if _, dup := seen[s.field]; dup {
 			return nil, ErrNonIndexableCondition
 		}
-		seen[p.field] = struct{}{}
+		seen[s.field] = struct{}{}
+		canonical := canonicalizeValues(s.values)
+		if len(canonical) == 0 {
+			return nil, ErrNonIndexableCondition
+		}
+		out[i].values = canonical
 	}
 	return out, nil
 }
 
-func collectPairs(c parser.Condition, out *[]fieldValuePair) error {
+func collectSets(c parser.Condition, out *[]fieldValueSet) error {
 	switch v := c.(type) {
 	case parser.StringCondition:
 		if v.Op != parser.OpEq {
 			return ErrNonIndexableCondition
 		}
-		*out = append(*out, fieldValuePair{field: v.Field, value: v.Value})
+		*out = append(*out, fieldValueSet{field: v.Field, values: []string{v.Value}})
 		return nil
 	case *parser.StringCondition:
 		if v.Op != parser.OpEq {
 			return ErrNonIndexableCondition
 		}
-		*out = append(*out, fieldValuePair{field: v.Field, value: v.Value})
+		*out = append(*out, fieldValueSet{field: v.Field, values: []string{v.Value}})
+		return nil
+	case parser.SetCondition:
+		if v.Op != parser.OpIn {
+			return ErrNonIndexableCondition
+		}
+		*out = append(*out, fieldValueSet{field: v.Field, values: v.Values})
+		return nil
+	case *parser.SetCondition:
+		if v.Op != parser.OpIn {
+			return ErrNonIndexableCondition
+		}
+		*out = append(*out, fieldValueSet{field: v.Field, values: v.Values})
 		return nil
 	case parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectPairs(child, out); err != nil {
+			if err := collectSets(child, out); err != nil {
 				return err
 			}
 		}
 		return nil
 	case *parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectPairs(child, out); err != nil {
+			if err := collectSets(child, out); err != nil {
 				return err
 			}
 		}
@@ -304,6 +349,65 @@ func collectPairs(c parser.Condition, out *[]fieldValuePair) error {
 	default:
 		return ErrNonIndexableCondition
 	}
+}
+
+// canonicalizeValues returns a sorted, deduplicated copy of values.
+// Empty input returns nil so the empty-set rejection in
+// extractIndexablePairs catches it.
+func canonicalizeValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	sorted := make([]string, len(values))
+	copy(sorted, values)
+	sort.Strings(sorted)
+	n := 1
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i] != sorted[i-1] {
+			sorted[n] = sorted[i]
+			n++
+		}
+	}
+	return sorted[:n]
+}
+
+// cartesianFanout returns the number of bucket entries the rule will
+// produce -- the product of len(values) across all sets. Short-
+// circuits once the product crosses maxFanout so a pathological
+// rule does not allocate proportional scratch state before the
+// rejection.
+func cartesianFanout(sets []fieldValueSet) int {
+	n := 1
+	for _, s := range sets {
+		n *= len(s.values)
+		if n > maxFanout {
+			return n
+		}
+	}
+	return n
+}
+
+// enumerateCombinations calls visit once per Cartesian-product
+// element across sets. The combo slice is reused between calls --
+// callers that need to retain the slice must copy it inside visit
+// (buildValueKey copies into a string already, so it's fine).
+func enumerateCombinations(sets []fieldValueSet, visit func(combo []fieldValuePair)) {
+	combo := make([]fieldValuePair, len(sets))
+	for i, s := range sets {
+		combo[i].field = s.field
+	}
+	var recurse func(int)
+	recurse = func(i int) {
+		if i == len(sets) {
+			visit(combo)
+			return
+		}
+		for _, v := range sets[i].values {
+			combo[i].value = v
+			recurse(i + 1)
+		}
+	}
+	recurse(0)
 }
 
 // buildValueKey canonicalizes pairs (already sorted by field) into a

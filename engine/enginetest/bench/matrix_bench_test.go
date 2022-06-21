@@ -46,24 +46,34 @@ func priorityFactory() (engine.Engine, bench.SeedFunc) {
 }
 
 // IndexedFactory is the structured factory for engine/indexed. It
-// converts the harness's RuleSpec (field->value equality map) into an
-// indexed.Rule whose Match is the equivalent typed AndCondition.
+// converts the harness's RuleSpec into an indexed.Rule whose Match
+// is the equivalent typed AndCondition. KeyValues become OpEq
+// StringConditions; InValues become OpIn SetConditions (v0.9.0+).
 func IndexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 	e := indexed.New()
 	seed := func(spec bench.RuleSpec) error {
-		children := make([]parser.Condition, 0, len(spec.KeyValues))
-		for k, v := range spec.KeyValues {
-			children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
-		}
-		var match parser.Condition
-		if len(children) == 1 {
-			match = children[0]
-		} else {
-			match = parser.AndCondition{Children: children}
-		}
+		match := indexedRuleMatch(spec)
 		return e.AddRule(indexed.Rule{Name: spec.Name, Match: match})
 	}
 	return e, seed
+}
+
+// indexedRuleMatch composes an indexed.Rule.Match from a RuleSpec.
+// Returns a single condition if only one field is constrained, else
+// an AndCondition over all constraints. Shared by IndexedFactory
+// here and by engine/indexed/success_bar_test.go's local factory.
+func indexedRuleMatch(spec bench.RuleSpec) parser.Condition {
+	children := make([]parser.Condition, 0, len(spec.KeyValues)+len(spec.InValues))
+	for k, v := range spec.KeyValues {
+		children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
+	}
+	for k, vs := range spec.InValues {
+		children = append(children, parser.SetCondition{Field: k, Op: parser.OpIn, Values: vs})
+	}
+	if len(children) == 1 {
+		return children[0]
+	}
+	return parser.AndCondition{Children: children}
 }
 
 // runMatrix runs w against every linear adapter as a sub-benchmark,

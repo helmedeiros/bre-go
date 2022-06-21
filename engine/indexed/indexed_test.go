@@ -88,10 +88,13 @@ func TestAddRuleRejectsOrCondition(t *testing.T) {
 	}
 }
 
-func TestAddRuleRejectsSetCondition(t *testing.T) {
+// TestAddRuleRejectsOpNotIn -- OpIn became indexable in v0.9.0
+// (ADR-0034); OpNotIn stays rejected, slated for v0.10.0's
+// post-filter work.
+func TestAddRuleRejectsOpNotIn(t *testing.T) {
 	e := indexed.New()
-	in := parser.SetCondition{Field: "country", Op: parser.OpIn, Values: []string{"BR", "AR"}}
-	err := e.AddRule(indexed.Rule{Name: "in-rule", Match: in})
+	notIn := parser.SetCondition{Field: "country", Op: parser.OpNotIn, Values: []string{"BR", "AR"}}
+	err := e.AddRule(indexed.Rule{Name: "not-in-rule", Match: notIn})
 	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
 		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
 	}

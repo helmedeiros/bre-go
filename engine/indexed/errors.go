@@ -25,6 +25,25 @@ var ErrNonIndexableCondition = errors.New("indexed: match is not a pure conjunct
 // map[string]interface{}).
 var ErrIncompatibleInput = errors.New("indexed: Execute input must be map[string]string or map[string]interface{}")
 
+// FanoutTooLargeError is returned by AddRule when a rule's OpIn
+// expansion would produce more bucket entries than maxFanout. See
+// ADR-0034 §"What about the OpIn empty-set edge?". Caller fixes
+// the rule (reduce OpIn cardinality, split into multiple rules)
+// rather than the engine eating unbounded memory.
+type FanoutTooLargeError struct {
+	Rule        string
+	Cardinality int
+	Limit       int
+}
+
+// Error implements the error interface.
+func (e *FanoutTooLargeError) Error() string {
+	return fmt.Sprintf("indexed: rule %q fan-out %d exceeds limit %d", e.Rule, e.Cardinality, e.Limit)
+}
+
+// RuleName returns the name of the rejected rule.
+func (e *FanoutTooLargeError) RuleName() string { return e.Rule }
+
 // ActionPanicError is returned by Execute when a rule's Action panicked.
 // The adapter recovered the panic; the matched rule name is in
 // Result.Matched, but its Action did not complete.

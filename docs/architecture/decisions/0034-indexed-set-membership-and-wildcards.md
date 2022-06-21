@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed — target v0.9.0. First of the five Phase-4 releases that
-incrementally widen what `engine/indexed` can match against. v0.8.0
-shipped pure equality conjunctions; this ADR adds `OpIn`
-set-membership and documents the wildcard semantics that already
-work for free via key-set walking.
+Accepted — landed in v0.9.0. `OpIn` set-membership admitted via
+bucket fan-out at `AddRule`; new `FanoutTooLargeError` for
+overflow. Wildcard semantics documented and locked in by tests;
+no production-code change needed. Both v0.9.0 success-bar cells
+in `BENCHMARKS.md` clear at >200× firstmatch (1k OpIn/Last) and
+>2 600× (10k OpIn/NoHit). Existing v0.8.0 bar still holds.
 
 ## Context
 
