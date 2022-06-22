@@ -674,11 +674,28 @@ res, _ := e.Execute(context.Background(), engine.Request{
 // single-field key-set was registered first, so it wins the tie.)
 ```
 
-**What's indexable:**
+**What's indexable** (as of `v0.9.0`):
 
-- `parser.StringCondition{Op: OpEq, ...}` -- yes.
-- `parser.AndCondition` whose children are all `OpEq` `StringCondition`s -- yes.
-- `OpNeq`, `OpIn`, `OpNotIn`, `OrCondition`, `NotCondition`, `SetCondition` -- **no**, `AddRule` returns `ErrNonIndexableCondition`. Use one of the linear adapters for those shapes.
+- `parser.StringCondition{Op: OpEq, ...}` -- yes (since v0.8.0).
+- `parser.SetCondition{Op: OpIn, Values: [...]}` -- yes (since v0.9.0). Each rule expands at AddRule into one bucket entry per Cartesian-product combination. Empty value sets rejected; single-value sets behave like the equivalent OpEq. Fan-outs > 1024 entries rejected with `*FanoutTooLargeError`.
+- `parser.AndCondition` whose children are all the above -- yes.
+- **Wildcards via field omission**: a rule whose `Match` does not mention a particular field will fire regardless of that field's value in the input. Use this instead of an explicit "any value" marker.
+- `OpNeq`, `OpNotIn`, `OrCondition`, `NotCondition` -- **no** in v0.9.0, planned for v0.10.0. `AddRule` returns `ErrNonIndexableCondition`. Use one of the linear adapters for those shapes.
+
+Example using OpIn:
+
+```go
+e.AddRule(indexed.Rule{
+    Name: "carrier-allowlist-flight",
+    Match: parser.AndCondition{Children: []parser.Condition{
+        parser.StringCondition{Field: "product", Op: parser.OpEq, Value: "flight"},
+        parser.SetCondition{Field:  "carrier",  Op: parser.OpIn, Values: []string{"alpha", "beta", "gamma"}},
+    }},
+    Action: func(interface{}) interface{} { return "allow" },
+})
+```
+
+A single rule, three carrier values: AddRule inserts three bucket entries (one per `carrier` value), each in the `product+carrier` key-set. Execute is still one hash probe per key-set.
 
 **Input shape:**
 

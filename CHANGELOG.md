@@ -9,7 +9,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.9.0 just shipped. New entries land here._
+
+## [0.9.0] - 2022-06-22
+
+Ninth minor release. First of five Phase-4 follow-ups that incrementally widen what `engine/indexed` can match against. v0.9.0 admits `SetCondition{Op: OpIn}` (set membership) and documents wildcard semantics. Additive (no breaking changes from v0.8.0).
+
+### Added
+
+- `engine/indexed` now admits `parser.SetCondition{Op: OpIn, Values: [...]}` as part of a rule's `Match`. The expansion happens at `AddRule` time: the rule is inserted into one bucket entry per Cartesian-product combination of value sets. Empty value sets are rejected with `ErrNonIndexableCondition`; fan-outs above `maxFanout` (1024) are rejected with a new typed `*FanoutTooLargeError` carrying the rule name, computed cardinality, and limit. Single-value OpIn (`Values: ["x"]`) behaves identically to the equivalent `OpEq` shape. `OpNotIn` stays rejected -- that's v0.10.0's work.
+- Wildcard semantics documented and locked in by tests: a rule whose `Match` omits a field is correctly handled by the existing key-set walker. Zero new production code; the property now has explicit test coverage so it cannot drift.
+- `engine/enginetest/bench` gains `RuleSpec.InValues` (`map[string][]string`) and `Workload.OpInDims` / `Workload.OpInValuesPer` so the harness can generate OpIn-shaped rules across both linear and structured adapters for cross-adapter comparison. Existing equality-only workloads are unchanged.
+- Two new v0.9.0 success-bar tests in `engine/indexed/success_bar_test.go`. Both run firstmatch and indexed live on OpIn-bearing workloads and assert the multiplier:
+  - 1k rules, 5 dims, 2-of-5 OpIn with 3 values, `Last` position — ≥ 5× faster. Live: ~238×.
+  - 10k rules, same shape, `NoHit` — ≥ 50× faster. Live: ~2 674×.
+- ADR-0034 Accepted. Frozen BENCHMARKS.md cells extend; the four v0.8.0 cells continue to gate.
+
+### Internal
+
+- `extractEqualityPairs` → `extractIndexablePairs` returning `[]fieldValueSet` (one per constrained field; length-1 = OpEq, length-N = OpIn). Values are canonicalized (sorted + deduped) so two rules listing values in different order share a bucket.
+- New helpers: `canonicalizeValues`, `cartesianFanout`, `enumerateCombinations`. The Cartesian-product walk uses a single reusable `[]fieldValuePair` slice and a closure-style `visit`; bucket inserts copy into a string key so the slice can be reused safely across iterations.
 
 ## [0.8.0] - 2022-06-17
 

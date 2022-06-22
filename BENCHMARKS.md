@@ -52,6 +52,17 @@ The growth is linear in rule count for all three adapters — none of them index
 
 This is the cell the indexed adapter must **not** regress on — small rule sets pay the index's fixed overhead without amortizing it.
 
+## v0.9.0 success bar — `OpIn` set-membership — ✅ CLEARED
+
+ADR-0034 extends the indexed adapter to admit `SetCondition{Op: OpIn}` via bucket fan-out at AddRule. Two new bar cells were added in v0.9.0 to guarantee the new shape still rides the sub-linear matcher. Both clear at >200× firstmatch even though each rule now expands into multiple bucket entries:
+
+| Cell | `firstmatch` baseline | Required multiplier | Indexed live | Result |
+|---|---:|---:|---:|:---:|
+| 1k rules, 5 dims, **2 of 5 dims are OpIn with 3 values each**, `Last` | ~41 000 ns/op | ≥ 5× faster | ~172 ns/op (~238×) | ✅ |
+| 10k rules, 5 dims, **2 of 5 dims OpIn / 3 values**, `NoHit` | ~407 000 ns/op | ≥ 50× faster | ~152 ns/op (~2 674×) | ✅ |
+
+The shape contract widened, the perf claim held. The four v0.8.0 cells below continue to gate ci-local too — v0.9.0 cannot regress equality-only performance.
+
 ## v0.8.0 success bar — indexed matcher — ✅ CLEARED
 
 The indexed adapter must clear every row below before it ships as `v0.8.0`. The four `TestSuccessBar_*` tests in `engine/indexed/success_bar_test.go` enforce this live, comparing firstmatch and indexed in the same run so the ratios are immune to hardware drift.
