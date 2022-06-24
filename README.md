@@ -8,10 +8,10 @@ The public API is backend-agnostic. Today it ships with four in-process engines 
 
 [![CI](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml/badge.svg)](https://github.com/helmedeiros/bre-go/actions/workflows/ci.yml)
 
-`v0.9.0` -- ninth minor release. Widens what `engine/indexed` can match: admits `SetCondition{Op: OpIn}` for set-membership predicates (via bucket fan-out at AddRule) and documents the wildcard semantics that "fields omitted from `Match`" already provide. The v0.8.0 success bar continues to hold; two new v0.9.0 bar cells (OpIn-bearing workloads) clear at >200× firstmatch. First of five planned Phase-4 follow-ups that incrementally close the gap toward production-grade matcher shapes (see [ADR-0034](docs/architecture/decisions/0034-indexed-set-membership-and-wildcards.md)). Four concrete adapters, rule loading from CSV and JSON, twelve public packages plus one test-only sibling (`engine/enginetest/bench`), thirty-four Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md).
+`v0.9.1` -- patch release on top of v0.9.0. Adds per-adapter load-time benchmarks and a "Load-time profile" section to [`BENCHMARKS.md`](BENCHMARKS.md), completing the v0.9.0 perf picture (success-bar tests measure Execute only). No production-code change. The v0.9.0 widening of `engine/indexed` (`SetCondition{Op: OpIn}` + wildcard semantics) is still the headline; v0.9.1 just makes the load cost legible. Four concrete adapters, rule loading from CSV and JSON, twelve public packages plus one test-only sibling, thirty-four Architecture Decision Records on `main`. SemVer: pre-1.0 means breaking changes are still allowed but land as a `0.x → 0.(x+1)` minor bump; see [ADR-0021](docs/architecture/decisions/0021-release-versioning-policy.md).
 
 ```sh
-go get github.com/helmedeiros/bre-go@v0.9.0
+go get github.com/helmedeiros/bre-go@v0.9.1
 ```
 
 ### Upgrading from v0.1.0

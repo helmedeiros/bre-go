@@ -5,7 +5,7 @@ PKG       := ./...
 COVER_OUT ?= coverage.out
 COVER_MIN ?= 80
 
-.PHONY: help tools lint vet test cover cover-html bench bench-matrix fuzz-quick stress check-adrs check-quickstart all ci-local clean
+.PHONY: help tools lint vet test cover cover-html bench bench-matrix bench-load fuzz-quick stress check-adrs check-quickstart all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -17,6 +17,7 @@ help:
 	@echo "  cover-html  - open the per-line HTML coverage report"
 	@echo "  bench       - run benchmarks across all packages"
 	@echo "  bench-matrix - run the cross-adapter benchmark matrix (engine/enginetest/bench)"
+	@echo "  bench-load  - run the per-adapter load-time benchmarks (engine/indexed/load_bench_test.go)"
 	@echo "  fuzz-quick  - run each Fuzz* target for FUZZ_SECONDS (default 30s)"
 	@echo "  stress      - run build-tagged stress tests with -race"
 	@echo "  check-adrs  - verify the ADR README index matches the folder"
@@ -89,6 +90,13 @@ endif
 bench-matrix:
 ifneq ($(HAS_GO),)
 	$(GO) test -run=^$$ -bench=. -benchmem ./engine/enginetest/bench/...
+else
+	@echo "no go files to benchmark -- skipping"
+endif
+
+bench-load:
+ifneq ($(HAS_GO),)
+	$(GO) test -run=^$$ -bench=BenchmarkLoad -benchmem ./engine/indexed/...
 else
 	@echo "no go files to benchmark -- skipping"
 endif

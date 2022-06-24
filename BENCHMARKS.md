@@ -89,6 +89,40 @@ The `priority` and `inmemory` baselines are listed above for completeness; the b
 
 Note the flat shape — the cost of `Execute` barely moves as the rule count grows by three orders of magnitude. That is the indexed-matcher win the design promised.
 
+## Load-time profile (v0.9.1)
+
+The success-bar benchmarks (matrix + `TestSuccessBar_*`) measure per-Execute latency with `b.ResetTimer()` *after* rules are populated — the standard practice for measuring steady-state production cost. This section completes the picture by measuring **`AddRule` itself**: the cost of loading a populated engine before any Execute call.
+
+Run with `make bench-load` (or `go test -run=^$ -bench=BenchmarkLoad ./engine/indexed/...`).
+
+### Equality-only workloads
+
+| Workload | `firstmatch` load | `indexed` load | Indexed:firstmatch | Indexed memory |
+|---|---:|---:|---:|---:|
+| 1 000 rules / 5 dims | ~1.08 ms | ~1.48 ms | 1.4× slower | ~2.76 MB (5× more) |
+| 10 000 rules / 5 dims | ~96.6 ms | ~17.4 ms | **5.6× faster** | ~27.8 MB |
+
+### OpIn workloads (2 of 5 dims OpIn × 3 values = 9× fan-out per rule)
+
+| Workload | `firstmatch` load | `indexed` load | Indexed:firstmatch | Indexed memory |
+|---|---:|---:|---:|---:|
+| 1 000 rules / 5 dims | ~1.42 ms | ~2.27 ms | 1.6× slower | ~3.99 MB (5× more) |
+| 10 000 rules / 5 dims | ~102 ms | ~27.0 ms | **3.8× faster** | ~42.5 MB |
+
+### Why the asymptotic flip
+
+The 10k-rule cells tell the structural story. `firstmatch.AddRule` does a linear duplicate-name check (scan the existing rules) on every call — **O(N²) total** for N rules. `indexed.AddRule` uses a `map[string]struct{}` for the same check — O(N) amortized. The crossover happens somewhere around 2 000–3 000 rules: below that, `firstmatch` wins on per-rule overhead; above that, `indexed`'s asymptotic advantage takes over.
+
+The OpIn fan-out adds ~50% to the indexed load (9× more bucket inserts per rule) but the hot-path Execute cost stays flat — exactly as designed.
+
+### Amortization
+
+In a service that starts up once and serves requests for hours or days, AddRule cost is paid back in milliseconds. The worst small-scale case (1k rules, OpIn): `indexed` load is ~2.27 ms, vs ~172 ns per Execute. **~13 000 Execute calls and the load cost is even.** For long-running services the choice between adapters is dominated by per-Execute cost, not load cost.
+
+For serverless / per-request load patterns, indexed's memory overhead and small-N load penalty matter more. Use `firstmatch` if N is small (<500) and your workload re-loads on every request.
+
+These numbers are not gated by `ci-local` today — they live alongside the existing matrix as a release-prep / debugging reference. A future ADR may promote any of them to a hard gate when concurrency / hot-reload work (v0.12.0) needs a frozen load-time baseline.
+
 ## How to compare a new adapter
 
 1. Write a `Factory` that returns the new adapter and a `SeedFunc` mapping `bench`'s standard `(name, condition)` shape into the adapter's `Rule` struct.

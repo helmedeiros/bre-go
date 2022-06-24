@@ -9,7 +9,30 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.9.1 just shipped. New entries land here._
+
+## [0.9.1] - 2022-06-24
+
+Patch release. Completes v0.9.0's perf picture by adding load-time benchmarks (the matrix + success-bar tests measure Execute only, with `b.ResetTimer()` excluding AddRule). No production-code change.
+
+### Added
+
+- `engine/indexed/load_bench_test.go` -- per-adapter load-time benchmarks across the same workloads the matrix uses. Compares `firstmatch.AddRule` (linear duplicate check) vs `indexed.AddRule` (Cartesian fan-out + hash-map duplicate check) at 1k and 10k rule counts, with and without OpIn shapes.
+- `make bench-load` Makefile target.
+- `BENCHMARKS.md` gains a "Load-time profile" section documenting the asymptotic crossover (indexed pays ~1.5× at small N for structural work, then wins ~4-6× at 10k+ because firstmatch is O(N²) while indexed is O(N)). Memory is always higher on indexed (~5× more) because of the bucket structures.
+
+### Measured
+
+Apple M4 / Go 1.18 / equality-only workloads:
+
+| Rule count | firstmatch load | indexed load | Ratio |
+|---:|---:|---:|---:|
+| 1 000 | ~1.08 ms | ~1.48 ms | 1.4× slower |
+| 10 000 | ~96.6 ms | ~17.4 ms | 5.6× faster |
+
+Same shape with 9× OpIn fan-out per rule: indexed at 1k=2.27ms, 10k=27ms; still wins asymptotically at 10k.
+
+Load is not gated by `ci-local` today -- the section is reference material for release prep and adapter-choice decisions. A future ADR may promote it to a hard gate when the v0.12.0 concurrency / hot-reload work needs a frozen load-time baseline.
 
 ## [0.9.0] - 2022-06-22
 
