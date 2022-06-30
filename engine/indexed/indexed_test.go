@@ -68,14 +68,19 @@ func TestAddRuleRejectsDuplicateName(t *testing.T) {
 	}
 }
 
-func TestAddRuleRejectsOpNeq(t *testing.T) {
+// TestAddRulePureOpNeqRejectedAsNoIndexableTerms -- v0.10.0
+// (ADR-0035) admits OpNeq as a post-filter when paired with at
+// least one indexable term. A rule that ONLY has OpNeq (no OpEq /
+// OpIn) returns ErrNoIndexableTerms; the IndexDimension framework
+// in v0.11.0 is the intended home for pure-negation shapes.
+func TestAddRulePureOpNeqRejectedAsNoIndexableTerms(t *testing.T) {
 	e := indexed.New()
 	err := e.AddRule(indexed.Rule{
 		Name:  "neq-rule",
 		Match: parser.StringCondition{Field: "country", Op: parser.OpNeq, Value: "BR"},
 	})
-	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
-		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	if !errors.Is(err, indexed.ErrNoIndexableTerms) {
+		t.Fatalf("want ErrNoIndexableTerms, got %v", err)
 	}
 }
 
@@ -88,15 +93,16 @@ func TestAddRuleRejectsOrCondition(t *testing.T) {
 	}
 }
 
-// TestAddRuleRejectsOpNotIn -- OpIn became indexable in v0.9.0
-// (ADR-0034); OpNotIn stays rejected, slated for v0.10.0's
-// post-filter work.
-func TestAddRuleRejectsOpNotIn(t *testing.T) {
+// TestAddRulePureOpNotInRejectedAsNoIndexableTerms -- v0.10.0
+// admits OpNotIn as a post-filter when paired with an indexable
+// term. Pure OpNotIn (no indexable term) returns
+// ErrNoIndexableTerms.
+func TestAddRulePureOpNotInRejectedAsNoIndexableTerms(t *testing.T) {
 	e := indexed.New()
 	notIn := parser.SetCondition{Field: "country", Op: parser.OpNotIn, Values: []string{"BR", "AR"}}
 	err := e.AddRule(indexed.Rule{Name: "not-in-rule", Match: notIn})
-	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
-		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	if !errors.Is(err, indexed.ErrNoIndexableTerms) {
+		t.Fatalf("want ErrNoIndexableTerms, got %v", err)
 	}
 }
 

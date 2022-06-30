@@ -15,10 +15,21 @@ var ErrNilMatch = errors.New("indexed: rule match must not be nil")
 // same name is already registered.
 var ErrDuplicateRuleName = errors.New("indexed: rule name already registered")
 
-// ErrNonIndexableCondition is returned by AddRule when Match is not a
-// pure conjunction of equality (OpEq) string conditions. See
-// ADR-0033 §"What is indexable".
-var ErrNonIndexableCondition = errors.New("indexed: match is not a pure conjunction of equality conditions")
+// ErrNonIndexableCondition is returned by AddRule when Match contains
+// a shape the engine does not recognize as indexable or as a valid
+// post-filter (e.g. a SetCondition with an unsupported Op, an empty
+// value list, a duplicate field across the conjunction, or a shape
+// outside the StringCondition / SetCondition / AndCondition family).
+// See ADR-0033 / ADR-0035.
+var ErrNonIndexableCondition = errors.New("indexed: match contains a shape the indexed adapter does not understand")
+
+// ErrNoIndexableTerms is returned by AddRule when Match contains
+// only non-indexable terms (e.g. pure-negation rules like
+// `country != BR`). Each rule must have at least one OpEq or OpIn
+// term so the engine can bucket it. Pure-negation shapes are
+// slated for the IndexDimension framework in v0.11.0; today they
+// must use one of the linear adapters. See ADR-0035 §2.
+var ErrNoIndexableTerms = errors.New("indexed: match has no indexable terms (at least one OpEq or OpIn required)")
 
 // ErrIncompatibleInput is returned by Execute when req.Input cannot
 // be projected as a fact map (must be map[string]string or

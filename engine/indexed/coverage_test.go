@@ -2,6 +2,7 @@ package indexed_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -71,14 +72,48 @@ func TestCollectPairsAcceptsPointerAndCondition(t *testing.T) {
 	}
 }
 
-func TestCollectPairsRejectsPointerStringConditionWithOpNeq(t *testing.T) {
+// TestClassifyRejectsStringConditionWithSetOp -- a malformed
+// StringCondition whose Op is OpIn (a SetCondition operator)
+// returns ErrNonIndexableCondition. Exercises the default arm of
+// classifyStringCondition's switch.
+func TestClassifyRejectsStringConditionWithSetOp(t *testing.T) {
+	e := indexed.New()
+	err := e.AddRule(indexed.Rule{
+		Name:  "bogus-string-with-set-op",
+		Match: parser.StringCondition{Field: "x", Op: parser.OpIn, Value: "y"},
+	})
+	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
+		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	}
+}
+
+// TestClassifyRejectsSetConditionWithStringOp -- mirror: a
+// SetCondition with OpEq (a StringCondition operator) returns
+// ErrNonIndexableCondition.
+func TestClassifyRejectsSetConditionWithStringOp(t *testing.T) {
+	e := indexed.New()
+	err := e.AddRule(indexed.Rule{
+		Name:  "bogus-set-with-string-op",
+		Match: parser.SetCondition{Field: "x", Op: parser.OpEq, Values: []string{"a"}},
+	})
+	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
+		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	}
+}
+
+// TestPurePointerOpNeqRejectedAsNoIndexableTerms -- v0.10.0
+// (ADR-0035) admits OpNeq as a post-filter when paired with at
+// least one indexable term. A pure-OpNeq rule (no indexable terms)
+// returns ErrNoIndexableTerms instead. Confirms the pointer-form
+// dispatch path makes the same classification as the value form.
+func TestPurePointerOpNeqRejectedAsNoIndexableTerms(t *testing.T) {
 	e := indexed.New()
 	err := e.AddRule(indexed.Rule{
 		Name:  "ptr-neq",
 		Match: &parser.StringCondition{Field: "x", Op: parser.OpNeq, Value: "y"},
 	})
-	if err != indexed.ErrNonIndexableCondition {
-		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	if !errors.Is(err, indexed.ErrNoIndexableTerms) {
+		t.Fatalf("want ErrNoIndexableTerms, got %v", err)
 	}
 }
 

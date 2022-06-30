@@ -40,12 +40,16 @@ func firstmatchFactory() (engine.Engine, bench.SeedFunc) {
 func indexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 	e := indexed.New()
 	seed := func(spec bench.RuleSpec) error {
-		children := make([]parser.Condition, 0, len(spec.KeyValues)+len(spec.InValues))
+		total := len(spec.KeyValues) + len(spec.InValues) + len(spec.NeqValues)
+		children := make([]parser.Condition, 0, total)
 		for k, v := range spec.KeyValues {
 			children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
 		}
 		for k, vs := range spec.InValues {
 			children = append(children, parser.SetCondition{Field: k, Op: parser.OpIn, Values: vs})
+		}
+		for k, v := range spec.NeqValues {
+			children = append(children, parser.StringCondition{Field: k, Op: parser.OpNeq, Value: v})
 		}
 		var match parser.Condition
 		if len(children) == 1 {
@@ -178,4 +182,42 @@ func TestSuccessBar_OpIn_10k5DimNoHit_AtLeast50x(t *testing.T) {
 		OpInValuesPer: 3,
 	}
 	assertSpeedup(t, "10k/5d/2-of-5-OpIn-3vals/NoHit", w, 50.0)
+}
+
+// ---- v0.10.0 (ADR-0035) ----------------------------------------------
+
+// TestSuccessBar_OpNeq_1k5DimLast_AtLeast5x: 1k rules where 1 of 5
+// dimensions is OpNeq (post-filter). The bucket lookup still
+// resolves on the 4 indexable dims; the post-filter adds one
+// Eval call per candidate. Indexed must still beat firstmatch by
+// >= 5x.
+func TestSuccessBar_OpNeq_1k5DimLast_AtLeast5x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:       1000,
+		Dimensions:  5,
+		Position:    bench.Last,
+		Selectivity: bench.Unique,
+		OpNeqDims:   1,
+	}
+	assertSpeedup(t, "1k/5d/1-OpNeq/Last", w, 5.0)
+}
+
+// TestSuccessBar_OpNeq_10k5DimNoHit_AtLeast30x: same workload at
+// 10k scale. Bar relaxed from 50x (v0.8.0 / v0.9.0) to 30x to
+// absorb post-filter Eval cost; live numbers expected well over.
+func TestSuccessBar_OpNeq_10k5DimNoHit_AtLeast30x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:       10000,
+		Dimensions:  5,
+		Position:    bench.NoHit,
+		Selectivity: bench.Unique,
+		OpNeqDims:   1,
+	}
+	assertSpeedup(t, "10k/5d/1-OpNeq/NoHit", w, 30.0)
 }

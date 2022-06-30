@@ -268,14 +268,17 @@ func TestCollectAcceptsPointerSetCondition(t *testing.T) {
 	}
 }
 
-func TestAddRuleRejectsPointerOpNotIn(t *testing.T) {
+// Pointer-form pure OpNotIn: v0.10.0 admits OpNotIn as a
+// post-filter when paired with indexable terms, but a rule with
+// ONLY OpNotIn returns ErrNoIndexableTerms.
+func TestAddRulePurePointerOpNotInRejectedAsNoIndexableTerms(t *testing.T) {
 	e := indexed.New()
 	err := e.AddRule(indexed.Rule{
 		Name:  "ptr-not-in",
 		Match: &parser.SetCondition{Field: "country", Op: parser.OpNotIn, Values: []string{"BR"}},
 	})
-	if !errors.Is(err, indexed.ErrNonIndexableCondition) {
-		t.Fatalf("want ErrNonIndexableCondition, got %v", err)
+	if !errors.Is(err, indexed.ErrNoIndexableTerms) {
+		t.Fatalf("want ErrNoIndexableTerms, got %v", err)
 	}
 }
 

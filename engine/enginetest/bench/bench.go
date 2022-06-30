@@ -54,6 +54,14 @@ const (
 // instead of plain equality. OpInValuesPer is the number of values
 // in each such set; the matching input value is the first value of
 // the set, so the rule still matches.
+//
+// OpNeqDims (v0.10.0+, ADR-0035) turns the LAST OpNeqDims dimensions
+// into negation constraints (post-filter in the indexed adapter).
+// For the structured factory these become StringCondition{Op:
+// OpNeq}; for the closure factory the equivalent set-difference
+// is implemented in the closure body. The rule remains matchable:
+// the negated value is a synthetic "blocked" value that is not
+// equal to the input's matching value.
 type Workload struct {
 	Rules         int
 	Dimensions    int
@@ -61,6 +69,7 @@ type Workload struct {
 	Selectivity   Selectivity
 	OpInDims      int
 	OpInValuesPer int
+	OpNeqDims     int
 }
 
 // BasicMatcher is the canonical workload: 5-dimensional equality
@@ -156,10 +165,10 @@ func setup(w Workload, factory Factory) (engine.Engine, Input, error) {
 // introspect rule shape (engine/indexed onward) use this surface.
 //
 // KeyValues lists fields the rule constrains under equality.
-// InValues (added in v0.9.0 for ADR-0034) lists fields the rule
-// constrains under OpIn set-membership; each entry's value slice is
-// the accepted-values set. KeyValues and InValues have disjoint
-// keys by construction.
+// InValues (v0.9.0, ADR-0034) lists fields under OpIn set-membership.
+// NeqValues (v0.10.0, ADR-0035) lists fields under OpNeq negation
+// (post-filter in the indexed adapter). All three maps have
+// disjoint keys by construction.
 //
 // A non-matching rule constrains the same dimensions but shifts one
 // field's expected value to a synthetic noise marker; the rule shape
@@ -168,6 +177,7 @@ type RuleSpec struct {
 	Name      string
 	KeyValues map[string]string
 	InValues  map[string][]string
+	NeqValues map[string]string
 }
 
 // StructuredSeedFunc registers a structurally-described rule on the
@@ -202,11 +212,12 @@ func PopulateStructured(seed StructuredSeedFunc, w Workload) (Input, error) {
 	}
 
 	for i := 0; i < w.Rules; i++ {
-		eq, in := makeSpecValues(w, i, matchSet[i])
+		eq, in, neq := makeSpecValues(w, i, matchSet[i])
 		spec := RuleSpec{
 			Name:      fmt.Sprintf("rule-%d", i),
 			KeyValues: eq,
 			InValues:  in,
+			NeqValues: neq,
 		}
 		if err := seed(spec); err != nil {
 			return nil, fmt.Errorf("bench: seed rule %d: %w", i, err)
@@ -236,41 +247,79 @@ func RunStructured(b *testing.B, w Workload, factory StructuredFactory) {
 }
 
 // makeSpecValues mirrors makeCondition's logic but produces the
-// structural form: an equality map plus an OpIn map. The two stay in
-// lockstep -- a rule built from makeCondition and a rule built from
-// makeSpecValues with the same arguments encode the same predicate.
+// structural form: equality, OpIn, and OpNeq maps. The three stay in
+// lockstep with the closure form so a rule built from each side
+// encodes the same predicate.
 //
-// Returns (KeyValues, InValues). When w.OpInDims == 0, InValues is
-// nil (no OpIn dims) and the function behaves the same as the
-// v0.8.0 makeKeyValues helper it replaces.
-func makeSpecValues(w Workload, ruleIdx int, shouldMatch bool) (map[string]string, map[string][]string) {
-	dims := w.Dimensions
-	opInDims := w.OpInDims
-	if opInDims > dims {
-		opInDims = dims
-	}
+// Dim layout (left to right by index d):
+//   - [0, opInDims):                       OpIn  -> InValues
+//   - [opInDims, dims-opNeqDims):          OpEq  -> KeyValues
+//   - [dims-opNeqDims, dims):              OpNeq -> NeqValues
+//
+// Returns (KeyValues, InValues, NeqValues). nil maps are returned
+// for empty dim ranges so callers can append children
+// unconditionally.
+func makeSpecValues(w Workload, ruleIdx int, shouldMatch bool) (map[string]string, map[string][]string, map[string]string) {
+	dims, opInDims, opNeqDims := dimLayout(w)
 
-	eq := make(map[string]string, dims-opInDims)
+	eq := map[string]string{}
 	var in map[string][]string
+	var neq map[string]string
 	if opInDims > 0 {
 		in = make(map[string][]string, opInDims)
 	}
+	if opNeqDims > 0 {
+		neq = make(map[string]string, opNeqDims)
+	}
 
 	for d := 0; d < dims; d++ {
-		if d < opInDims {
+		switch {
+		case d < opInDims:
 			in[dimKey(d)] = makeOpInValues(d, w.OpInValuesPer)
-		} else {
+		case d >= dims-opNeqDims:
+			// Negate a synthetic value that the input never carries,
+			// so the post-filter passes by construction.
+			neq[dimKey(d)] = fmt.Sprintf("blocked-d%d", d)
+		default:
 			eq[dimKey(d)] = matchValue(d)
 		}
 	}
 	if !shouldMatch {
+		// Flip dim 0's indexable side to a noise value so the rule
+		// drops out at the bucket lookup. OpNeq fields stay as-is;
+		// they were never going to fire the mismatch anyway.
 		if opInDims > 0 {
 			in[dimKey(0)] = []string{fmt.Sprintf("noise-%d-d0", ruleIdx)}
 		} else {
 			eq[dimKey(0)] = fmt.Sprintf("noise-%d-d0", ruleIdx)
 		}
 	}
-	return eq, in
+	if len(eq) == 0 {
+		eq = nil
+	}
+	return eq, in, neq
+}
+
+// dimLayout returns the trio (dims, opInDims, opNeqDims) clamped so
+// the OpIn and OpNeq ranges don't overlap and fit inside [0, dims).
+// Equality dims are whatever remains.
+func dimLayout(w Workload) (dims, opInDims, opNeqDims int) {
+	dims = w.Dimensions
+	opInDims = w.OpInDims
+	opNeqDims = w.OpNeqDims
+	if opInDims < 0 {
+		opInDims = 0
+	}
+	if opNeqDims < 0 {
+		opNeqDims = 0
+	}
+	if opInDims > dims {
+		opInDims = dims
+	}
+	if opInDims+opNeqDims > dims {
+		opNeqDims = dims - opInDims
+	}
+	return dims, opInDims, opNeqDims
 }
 
 // makeCondition returns a closure that matches the harness's Input
@@ -278,22 +327,21 @@ func makeSpecValues(w Workload, ruleIdx int, shouldMatch bool) (map[string]strin
 // gives linear adapters their fastest reject path, which keeps the
 // linear baseline tight rather than artificially slow).
 //
-// When w.OpInDims > 0, the first OpInDims dims are evaluated as
-// set-membership instead of plain equality, matching the rule shape
-// the structured (indexed) adapter sees.
+// Dim layout matches makeSpecValues: OpIn dims at the head, OpEq
+// dims in the middle, OpNeq dims at the tail.
 func makeCondition(w Workload, ruleIdx int, shouldMatch bool) func(input interface{}) bool {
-	dims := w.Dimensions
-	opInDims := w.OpInDims
-	if opInDims > dims {
-		opInDims = dims
-	}
+	dims, opInDims, opNeqDims := dimLayout(w)
 
 	eqExpected := make([]string, dims)
 	inExpected := make([][]string, opInDims)
+	neqExpected := make([]string, dims) // empty string at non-OpNeq slots
 	for d := 0; d < dims; d++ {
-		if d < opInDims {
+		switch {
+		case d < opInDims:
 			inExpected[d] = makeOpInValues(d, w.OpInValuesPer)
-		} else {
+		case d >= dims-opNeqDims:
+			neqExpected[d] = fmt.Sprintf("blocked-d%d", d)
+		default:
 			eqExpected[d] = matchValue(d)
 		}
 	}
@@ -305,6 +353,8 @@ func makeCondition(w Workload, ruleIdx int, shouldMatch bool) func(input interfa
 		}
 	}
 
+	eqStart := opInDims
+	eqEnd := dims - opNeqDims
 	return func(in interface{}) bool {
 		m, ok := in.(Input)
 		if !ok {
@@ -323,8 +373,13 @@ func makeCondition(w Workload, ruleIdx int, shouldMatch bool) func(input interfa
 				return false
 			}
 		}
-		for d := opInDims; d < dims; d++ {
+		for d := eqStart; d < eqEnd; d++ {
 			if m[dimKey(d)] != eqExpected[d] {
+				return false
+			}
+		}
+		for d := eqEnd; d < dims; d++ {
+			if m[dimKey(d)] == neqExpected[d] {
 				return false
 			}
 		}

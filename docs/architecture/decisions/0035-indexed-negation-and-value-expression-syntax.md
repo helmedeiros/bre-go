@@ -2,12 +2,13 @@
 
 ## Status
 
-Proposed — target v0.10.0. Second of the five Phase-4 parity-closure
-releases. ADR-0034 widened `engine/indexed` to accept set membership
-via fan-out; ADR-0035 widens it again to accept negation (`OpNeq` /
-`OpNotIn`) via a post-filter pass, and adds a value-expression
-mini-grammar in `engine/parser` so CSV-shaped callers can express
-`!flight`, `flight|train`, etc. inside a single string.
+Accepted — landed in v0.10.0. `engine/indexed` admits `OpNeq` and
+`OpNotIn` via a per-rule post-filter applied after bucket hits;
+pure-negation rules return the new `ErrNoIndexableTerms`.
+`engine/parser` ships `ParseValueExpression(field, value)` for
+CSV-shaped callers. Both v0.10.0 success-bar cells clear at >110×
+(1k/Last) and >2 900× (10k/NoHit); existing v0.8.0 and v0.9.0
+bars hold.
 
 ## Context
 

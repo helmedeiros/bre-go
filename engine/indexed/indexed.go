@@ -84,22 +84,33 @@ type keysetBucket struct {
 // indexedRule is the per-bucket form of a Rule. It carries the
 // minimum information Execute needs at lookup time; the full Rule
 // (Description, Tags, etc.) lives in Engine.rulesInOrder.
+//
+// postFilter is the list of non-indexable terms (OpNeq, OpNotIn)
+// that must Eval to true on the candidate input. Empty / nil when
+// the rule is pure-indexable, in which case the Execute hot path
+// skips the Eval entirely. Added in v0.10.0 per ADR-0035.
 type indexedRule struct {
-	name   string
-	action func(input interface{}) interface{}
-	ctxAct func(ctx context.Context, input interface{}) interface{}
+	name       string
+	action     func(input interface{}) interface{}
+	ctxAct     func(ctx context.Context, input interface{}) interface{}
+	postFilter []parser.Condition
 }
 
 // AddRule registers r. Returns ErrEmptyRuleName / ErrNilMatch /
-// ErrDuplicateRuleName / ErrNonIndexableCondition / *FanoutTooLargeError
-// depending on which shape invariant the rule violates. Checks run
-// shape-first, state-second.
+// ErrDuplicateRuleName / ErrNonIndexableCondition /
+// ErrNoIndexableTerms / *FanoutTooLargeError depending on which
+// shape invariant the rule violates. Checks run shape-first,
+// state-second.
 //
-// A rule whose Match contains OpIn set-membership conditions
-// expands into a Cartesian product of bucket entries -- one per
-// combination of values. Empty value sets, duplicate fields, and
-// fan-outs exceeding maxFanout are rejected. See ADR-0034 §1 for
-// the fan-out rationale.
+// Rule shapes:
+//   - OpEq / OpIn children contribute to the bucket key
+//     (Cartesian-product fan-out per ADR-0034).
+//   - OpNeq / OpNotIn children become post-filters evaluated at
+//     Execute time per ADR-0035.
+//   - A rule must have >= 1 indexable child; pure-negation rules
+//     return ErrNoIndexableTerms.
+//   - Empty value sets, duplicate indexable fields, and fan-outs
+//     exceeding maxFanout are rejected.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
@@ -107,9 +118,12 @@ func (e *Engine) AddRule(r Rule) error {
 	if r.Match == nil {
 		return ErrNilMatch
 	}
-	sets, err := extractIndexablePairs(r.Match)
+	sets, postFilter, err := extractIndexablePairs(r.Match)
 	if err != nil {
 		return err
+	}
+	if len(sets) == 0 {
+		return ErrNoIndexableTerms
 	}
 	fanout := cartesianFanout(sets)
 	if fanout > maxFanout {
@@ -135,7 +149,12 @@ func (e *Engine) AddRule(r Rule) error {
 	}
 
 	e.rulesInOrder = append(e.rulesInOrder, r)
-	ir := indexedRule{name: r.Name, action: r.Action, ctxAct: r.ActionContext}
+	ir := indexedRule{
+		name:       r.Name,
+		action:     r.Action,
+		ctxAct:     r.ActionContext,
+		postFilter: postFilter,
+	}
 
 	enumerateCombinations(sets, func(combo []fieldValuePair) {
 		vk := buildValueKey(combo)
@@ -220,12 +239,20 @@ func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result
 		}
 
 		candidates := bucket.byValueKey[valueKey]
+		var factMap map[string]interface{} // lazy-built for post-filter Eval
 		for _, cand := range candidates {
-			// No runtime Eval here: the AddRule contract (pure OpEq
-			// conjunction, no duplicate fields) means every rule in
-			// this bucket matches the value key we just probed.
-			// Future ADRs that widen the indexable shape re-introduce
-			// the check with their own coverage.
+			// Indexable part of the rule is already known to match by
+			// virtue of the bucket invariant. If the rule carries a
+			// post-filter (OpNeq / OpNotIn terms per ADR-0035), evaluate
+			// it now; skip the rule if any term returns false.
+			if len(cand.postFilter) > 0 {
+				if factMap == nil {
+					factMap = factToInterfaceMap(fact)
+				}
+				if !passesPostFilter(cand.postFilter, factMap) {
+					continue
+				}
+			}
 			out := engine.Result{Matched: []string{cand.name}}
 			if cand.action != nil || cand.ctxAct != nil {
 				output, panicErr := runAction(ctx, cand, req.Input)
@@ -274,77 +301,97 @@ type fieldValueSet struct {
 	values []string
 }
 
-// extractIndexablePairs walks Match and returns one fieldValueSet
-// per constrained field. Match must be a conjunction whose children
-// are each an OpEq StringCondition or an OpIn SetCondition. Anything
-// else (OpNeq, OpNotIn, Or, Not, range predicates, custom shapes,
-// empty value sets, duplicate fields) returns ErrNonIndexableCondition.
+// extractIndexablePairs walks Match and splits it into:
+//   - indexable terms (OpEq StringCondition, OpIn SetCondition)
+//     returned as []fieldValueSet for bucket-key construction.
+//   - post-filter terms (OpNeq StringCondition, OpNotIn SetCondition)
+//     returned verbatim as []parser.Condition for runtime evaluation.
 //
-// The values list of each returned set is canonicalized: sorted and
-// deduplicated. This keeps the keyset / valueKey computation stable
-// regardless of the source order.
-func extractIndexablePairs(c parser.Condition) ([]fieldValueSet, error) {
-	var out []fieldValueSet
-	if err := collectSets(c, &out); err != nil {
-		return nil, err
+// Anything else (Or, Not, range predicates, custom shapes, empty
+// value sets, duplicate indexable field) returns
+// ErrNonIndexableCondition.
+//
+// The values list of each indexable set is canonicalized: sorted
+// and deduplicated. This keeps the keyset / valueKey computation
+// stable regardless of source order.
+//
+// Pure-negation rules (zero indexable terms) return a populated
+// post-filter list with an empty index slice; AddRule then surfaces
+// ErrNoIndexableTerms. Splitting that decision out of the walker
+// keeps the walker focused on classification.
+func extractIndexablePairs(c parser.Condition) ([]fieldValueSet, []parser.Condition, error) {
+	var sets []fieldValueSet
+	var postFilter []parser.Condition
+	if err := collectSets(c, &sets, &postFilter); err != nil {
+		return nil, nil, err
 	}
-	if len(out) == 0 {
-		return nil, ErrNonIndexableCondition
+	if len(sets) == 0 && len(postFilter) == 0 {
+		return nil, nil, ErrNonIndexableCondition
 	}
-	seen := make(map[string]struct{}, len(out))
-	for i, s := range out {
+	seen := make(map[string]struct{}, len(sets))
+	for i, s := range sets {
 		if _, dup := seen[s.field]; dup {
-			return nil, ErrNonIndexableCondition
+			return nil, nil, ErrNonIndexableCondition
 		}
 		seen[s.field] = struct{}{}
 		canonical := canonicalizeValues(s.values)
 		if len(canonical) == 0 {
-			return nil, ErrNonIndexableCondition
+			return nil, nil, ErrNonIndexableCondition
 		}
-		out[i].values = canonical
+		sets[i].values = canonical
 	}
-	return out, nil
+	return sets, postFilter, nil
 }
 
-func collectSets(c parser.Condition, out *[]fieldValueSet) error {
+func collectSets(c parser.Condition, sets *[]fieldValueSet, post *[]parser.Condition) error {
 	switch v := c.(type) {
 	case parser.StringCondition:
-		if v.Op != parser.OpEq {
-			return ErrNonIndexableCondition
-		}
-		*out = append(*out, fieldValueSet{field: v.Field, values: []string{v.Value}})
-		return nil
+		return classifyStringCondition(v, sets, post)
 	case *parser.StringCondition:
-		if v.Op != parser.OpEq {
-			return ErrNonIndexableCondition
-		}
-		*out = append(*out, fieldValueSet{field: v.Field, values: []string{v.Value}})
-		return nil
+		return classifyStringCondition(*v, sets, post)
 	case parser.SetCondition:
-		if v.Op != parser.OpIn {
-			return ErrNonIndexableCondition
-		}
-		*out = append(*out, fieldValueSet{field: v.Field, values: v.Values})
-		return nil
+		return classifySetCondition(v, sets, post)
 	case *parser.SetCondition:
-		if v.Op != parser.OpIn {
-			return ErrNonIndexableCondition
-		}
-		*out = append(*out, fieldValueSet{field: v.Field, values: v.Values})
-		return nil
+		return classifySetCondition(*v, sets, post)
 	case parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectSets(child, out); err != nil {
+			if err := collectSets(child, sets, post); err != nil {
 				return err
 			}
 		}
 		return nil
 	case *parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectSets(child, out); err != nil {
+			if err := collectSets(child, sets, post); err != nil {
 				return err
 			}
 		}
+		return nil
+	default:
+		return ErrNonIndexableCondition
+	}
+}
+
+func classifyStringCondition(v parser.StringCondition, sets *[]fieldValueSet, post *[]parser.Condition) error {
+	switch v.Op {
+	case parser.OpEq:
+		*sets = append(*sets, fieldValueSet{field: v.Field, values: []string{v.Value}})
+		return nil
+	case parser.OpNeq:
+		*post = append(*post, v)
+		return nil
+	default:
+		return ErrNonIndexableCondition
+	}
+}
+
+func classifySetCondition(v parser.SetCondition, sets *[]fieldValueSet, post *[]parser.Condition) error {
+	switch v.Op {
+	case parser.OpIn:
+		*sets = append(*sets, fieldValueSet{field: v.Field, values: v.Values})
+		return nil
+	case parser.OpNotIn:
+		*post = append(*post, v)
 		return nil
 	default:
 		return ErrNonIndexableCondition
@@ -474,4 +521,30 @@ func coerceInput(in interface{}) (map[string]string, error) {
 	default:
 		return nil, ErrIncompatibleInput
 	}
+}
+
+// passesPostFilter returns true iff every condition in filter
+// evaluates to true against fact. Used by Execute after a bucket
+// hit to apply non-indexable predicates (OpNeq / OpNotIn) per
+// ADR-0035.
+func passesPostFilter(filter []parser.Condition, fact map[string]interface{}) bool {
+	for _, c := range filter {
+		if !c.Eval(fact) {
+			return false
+		}
+	}
+	return true
+}
+
+// factToInterfaceMap converts the canonical map[string]string fact
+// representation into the map[string]interface{} shape that
+// parser.Condition.Eval requires. Built lazily inside Execute and
+// only when at least one candidate has a post-filter, so rules
+// without negation pay zero cost.
+func factToInterfaceMap(fact map[string]string) map[string]interface{} {
+	out := make(map[string]interface{}, len(fact))
+	for k, v := range fact {
+		out[k] = v
+	}
+	return out
 }
