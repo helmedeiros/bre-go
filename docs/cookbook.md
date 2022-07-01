@@ -674,13 +674,16 @@ res, _ := e.Execute(context.Background(), engine.Request{
 // single-field key-set was registered first, so it wins the tie.)
 ```
 
-**What's indexable** (as of `v0.9.0`):
+**What's indexable** (as of `v0.10.0`):
 
-- `parser.StringCondition{Op: OpEq, ...}` -- yes (since v0.8.0).
-- `parser.SetCondition{Op: OpIn, Values: [...]}` -- yes (since v0.9.0). Each rule expands at AddRule into one bucket entry per Cartesian-product combination. Empty value sets rejected; single-value sets behave like the equivalent OpEq. Fan-outs > 1024 entries rejected with `*FanoutTooLargeError`.
+- `parser.StringCondition{Op: OpEq, ...}` -- yes (since v0.8.0). Bucket-key contributor.
+- `parser.SetCondition{Op: OpIn, Values: [...]}` -- yes (since v0.9.0). Cartesian-product fan-out at AddRule. Empty value sets rejected; single-value behaves like OpEq. Fan-outs > 1024 rejected with `*FanoutTooLargeError`.
+- `parser.StringCondition{Op: OpNeq, ...}` -- yes (since v0.10.0) as a **post-filter** -- the rule still needs at least one indexable term (OpEq or OpIn) for the bucket-key.
+- `parser.SetCondition{Op: OpNotIn, Values: [...]}` -- yes (since v0.10.0) as a **post-filter** -- same constraint.
 - `parser.AndCondition` whose children are all the above -- yes.
-- **Wildcards via field omission**: a rule whose `Match` does not mention a particular field will fire regardless of that field's value in the input. Use this instead of an explicit "any value" marker.
-- `OpNeq`, `OpNotIn`, `OrCondition`, `NotCondition` -- **no** in v0.9.0, planned for v0.10.0. `AddRule` returns `ErrNonIndexableCondition`. Use one of the linear adapters for those shapes.
+- **Wildcards via field omission**: a rule whose `Match` does not mention a particular field will fire regardless of that field's value in the input.
+- Pure-negation rules (no indexable term) -- **no**, returns `ErrNoIndexableTerms`. Use one of the linear adapters, or add at least one OpEq / OpIn term. The IndexDimension framework in v0.11.0 is the intended home.
+- `OrCondition`, `NotCondition` (typed) -- **no** in v0.10.0. Use one of the linear adapters.
 
 Example using OpIn:
 

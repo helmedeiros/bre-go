@@ -52,6 +52,19 @@ The growth is linear in rule count for all three adapters — none of them index
 
 This is the cell the indexed adapter must **not** regress on — small rule sets pay the index's fixed overhead without amortizing it.
 
+## v0.10.0 success bar — negation post-filter — ✅ CLEARED
+
+ADR-0035 admits `StringCondition{Op: OpNeq}` and `SetCondition{Op: OpNotIn}` as post-filters on bucket hits in `engine/indexed`. The 1k cell shows the real cost of the post-filter — an extra ~190 ns/op vs the equality baseline because of the per-candidate `Condition.Eval`. The 10k NoHit cell is unaffected because the bucket misses before the post-filter ever runs.
+
+| Cell | `firstmatch` baseline | Required multiplier | Indexed live | Result |
+|---|---:|---:|---:|:---:|
+| 1k rules, 5 dims, 1 of 5 fields uses `OpNeq` post-filter, `Last` | ~40 500 ns/op | ≥ 5× faster | ~364 ns/op (~111×) | ✅ |
+| 10k rules, 5 dims, 1 of 5 fields `OpNeq`, `NoHit` | ~418 000 ns/op | ≥ 30× faster | ~142 ns/op (~2 942×) | ✅ |
+
+The 30× bar (vs 50× in v0.8.0/v0.9.0) absorbs the post-filter overhead in pathological worst-case workloads. In practice the live ratio is much higher because real-world bucket hits are sparse.
+
+Rules with zero `OpNeq` / `OpNotIn` terms (the v0.8.0 / v0.9.0 case) have a nil post-filter slice and Execute skips the Eval entirely. Zero hot-path cost for callers who never touch negation.
+
 ## v0.9.0 success bar — `OpIn` set-membership — ✅ CLEARED
 
 ADR-0034 extends the indexed adapter to admit `SetCondition{Op: OpIn}` via bucket fan-out at AddRule. Two new bar cells were added in v0.9.0 to guarantee the new shape still rides the sub-linear matcher. Both clear at >200× firstmatch even though each rule now expands into multiple bucket entries:

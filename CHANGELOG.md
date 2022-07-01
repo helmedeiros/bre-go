@@ -9,7 +9,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.10.0 just shipped. New entries land here._
+
+## [0.10.0] - 2022-07-01
+
+Tenth minor release. Second of five Phase-4 follow-ups. Widens `engine/indexed` to admit `OpNeq` / `OpNotIn` as post-filter terms (paired with at least one indexable term), and adds a value-expression mini-grammar in `engine/parser` for CSV-shaped callers. Additive (no breaking changes from v0.9.x).
+
+### Added
+
+- `engine/indexed` admits `parser.StringCondition{Op: OpNeq}` and `parser.SetCondition{Op: OpNotIn}` as runtime post-filters when paired with at least one indexable term (`OpEq` / `OpIn`). After a bucket hit the engine evaluates the rule's post-filter against the input fact and skips the rule if any term returns false. Rules without negation pay zero hot-path cost (Execute checks `len(postFilter) == 0` and skips the Eval).
+- New typed `ErrNoIndexableTerms` sentinel for rules whose `Match` has no `OpEq` / `OpIn` term (pure-negation shapes). `ErrNonIndexableCondition` retains its v0.8.0 meaning of "shape the engine does not understand."
+- `engine/parser` ships `ParseValueExpression(field, value)` and `ValueExpressionError`. Recognized shapes: plain value → `StringCondition{OpEq}`, `!value` → `StringCondition{OpNeq}`, `value1|value2` → `SetCondition{OpIn}`, `*` or empty → returns `nil`. Mixed forms (`!a|b`), empty negation operand, and empty alternatives all return `*ValueExpressionError` with the offending field / value / cause.
+- `engine/enginetest/bench` gains `RuleSpec.NeqValues map[string]string` and `Workload.OpNeqDims int`. The structured generator emits `OpNeq` `StringCondition`s for the tail dims; the closure generator implements equivalent negation semantics for the linear baseline.
+- Two new v0.10.0 success-bar tests in `engine/indexed/success_bar_test.go`:
+  - 1k rules, 5 dims, 1 OpNeq post-filter, `Last` -- ≥ 5× faster. Live: ~111×.
+  - 10k rules, same shape, `NoHit` -- ≥ 30× faster (bar relaxed from 50× to absorb post-filter overhead). Live: ~2 942×.
+- ADR-0035 Accepted. Existing v0.8.0 + v0.9.0 success-bar cells continue to gate.
+
+### Internal
+
+- `extractIndexablePairs` returns both indexable terms (`[]fieldValueSet` for bucket-key construction) and post-filter terms (`[]parser.Condition` for runtime evaluation). New `classifyStringCondition` / `classifySetCondition` helpers route each Op to the right pile.
+- `indexedRule` gains a `postFilter []parser.Condition` field. Empty / nil for pure-indexable rules.
+- `Execute` lazily builds `map[string]interface{}` from the canonical `map[string]string` fact only when at least one candidate has a non-empty post-filter, so rules without negation skip the conversion.
 
 ## [0.9.1] - 2022-06-24
 
