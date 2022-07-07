@@ -72,6 +72,34 @@ type Engine struct {
 	// RuleInfos can return rules in registration order even when
 	// buckets reorganize them.
 	rulesInOrder []Rule
+
+	// postFilterHook is consulted (when non-nil) for Conditions the
+	// built-in classifier doesn't recognize. See ADR-0036.
+	postFilterHook PostFilterHook
+}
+
+// PostFilterHook is a caller-supplied classifier for typed
+// parser.Conditions the indexed adapter does not natively recognize
+// (the built-in StringCondition / SetCondition / RangeCondition
+// shapes). When the hook returns true, the adapter treats the
+// Condition as a post-filter (appended to indexedRule.postFilter
+// and Eval'd against the input at Execute time).
+//
+// The hook is consulted only AFTER the built-in classifier has
+// declined; it cannot override built-in behavior. See ADR-0036.
+type PostFilterHook func(c parser.Condition) (handled bool)
+
+// WithPostFilterHook installs h on the engine. Subsequent AddRule
+// calls consult the hook before returning ErrNonIndexableCondition
+// for an unknown shape. Returns the engine to allow method chaining.
+//
+// Only one hook is active at a time; calling WithPostFilterHook
+// again replaces the previous hook. The hook does not affect
+// already-registered rules (those retain whatever classification
+// they had at the time AddRule was called).
+func (e *Engine) WithPostFilterHook(h PostFilterHook) *Engine {
+	e.postFilterHook = h
+	return e
 }
 
 // keysetBucket holds every rule whose Match constrains exactly the
@@ -118,7 +146,7 @@ func (e *Engine) AddRule(r Rule) error {
 	if r.Match == nil {
 		return ErrNilMatch
 	}
-	sets, postFilter, err := extractIndexablePairs(r.Match)
+	sets, postFilter, err := extractIndexablePairs(r.Match, e.postFilterHook)
 	if err != nil {
 		return err
 	}
@@ -304,11 +332,13 @@ type fieldValueSet struct {
 // extractIndexablePairs walks Match and splits it into:
 //   - indexable terms (OpEq StringCondition, OpIn SetCondition)
 //     returned as []fieldValueSet for bucket-key construction.
-//   - post-filter terms (OpNeq StringCondition, OpNotIn SetCondition)
-//     returned verbatim as []parser.Condition for runtime evaluation.
+//   - post-filter terms (OpNeq StringCondition, OpNotIn SetCondition,
+//     RangeCondition, anything the caller-installed PostFilterHook
+//     claims) returned verbatim as []parser.Condition for runtime
+//     evaluation.
 //
-// Anything else (Or, Not, range predicates, custom shapes, empty
-// value sets, duplicate indexable field) returns
+// Anything else (Or, Not, unrecognized custom shape with no hook,
+// empty value sets, duplicate indexable field) returns
 // ErrNonIndexableCondition.
 //
 // The values list of each indexable set is canonicalized: sorted
@@ -319,10 +349,10 @@ type fieldValueSet struct {
 // post-filter list with an empty index slice; AddRule then surfaces
 // ErrNoIndexableTerms. Splitting that decision out of the walker
 // keeps the walker focused on classification.
-func extractIndexablePairs(c parser.Condition) ([]fieldValueSet, []parser.Condition, error) {
+func extractIndexablePairs(c parser.Condition, hook PostFilterHook) ([]fieldValueSet, []parser.Condition, error) {
 	var sets []fieldValueSet
 	var postFilter []parser.Condition
-	if err := collectSets(c, &sets, &postFilter); err != nil {
+	if err := collectSets(c, &sets, &postFilter, hook); err != nil {
 		return nil, nil, err
 	}
 	if len(sets) == 0 && len(postFilter) == 0 {
@@ -343,7 +373,7 @@ func extractIndexablePairs(c parser.Condition) ([]fieldValueSet, []parser.Condit
 	return sets, postFilter, nil
 }
 
-func collectSets(c parser.Condition, sets *[]fieldValueSet, post *[]parser.Condition) error {
+func collectSets(c parser.Condition, sets *[]fieldValueSet, post *[]parser.Condition, hook PostFilterHook) error {
 	switch v := c.(type) {
 	case parser.StringCondition:
 		return classifyStringCondition(v, sets, post)
@@ -353,21 +383,33 @@ func collectSets(c parser.Condition, sets *[]fieldValueSet, post *[]parser.Condi
 		return classifySetCondition(v, sets, post)
 	case *parser.SetCondition:
 		return classifySetCondition(*v, sets, post)
+	case parser.RangeCondition:
+		*post = append(*post, v)
+		return nil
+	case *parser.RangeCondition:
+		*post = append(*post, *v)
+		return nil
 	case parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectSets(child, sets, post); err != nil {
+			if err := collectSets(child, sets, post, hook); err != nil {
 				return err
 			}
 		}
 		return nil
 	case *parser.AndCondition:
 		for _, child := range v.Children {
-			if err := collectSets(child, sets, post); err != nil {
+			if err := collectSets(child, sets, post, hook); err != nil {
 				return err
 			}
 		}
 		return nil
 	default:
+		// Built-in classifier doesn't recognize this shape. Consult
+		// the caller-installed hook (if any) per ADR-0036.
+		if hook != nil && hook(c) {
+			*post = append(*post, c)
+			return nil
+		}
 		return ErrNonIndexableCondition
 	}
 }

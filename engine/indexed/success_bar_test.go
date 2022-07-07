@@ -40,7 +40,7 @@ func firstmatchFactory() (engine.Engine, bench.SeedFunc) {
 func indexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 	e := indexed.New()
 	seed := func(spec bench.RuleSpec) error {
-		total := len(spec.KeyValues) + len(spec.InValues) + len(spec.NeqValues)
+		total := len(spec.KeyValues) + len(spec.InValues) + len(spec.NeqValues) + len(spec.RangeBounds)
 		children := make([]parser.Condition, 0, total)
 		for k, v := range spec.KeyValues {
 			children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
@@ -50,6 +50,9 @@ func indexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 		}
 		for k, v := range spec.NeqValues {
 			children = append(children, parser.StringCondition{Field: k, Op: parser.OpNeq, Value: v})
+		}
+		for k, b := range spec.RangeBounds {
+			children = append(children, parser.RangeCondition{Field: k, Min: b[0], Max: b[1]})
 		}
 		var match parser.Condition
 		if len(children) == 1 {
@@ -220,4 +223,39 @@ func TestSuccessBar_OpNeq_10k5DimNoHit_AtLeast30x(t *testing.T) {
 		OpNeqDims:   1,
 	}
 	assertSpeedup(t, "10k/5d/1-OpNeq/NoHit", w, 30.0)
+}
+
+// ---- v0.11.0 (ADR-0036) ----------------------------------------------
+
+// TestSuccessBar_Range_1k5DimLast_AtLeast5x: 1k rules where 1 of 5
+// dimensions is RangeCondition (post-filter, parses float). Indexed
+// must still beat firstmatch by >= 5x.
+func TestSuccessBar_Range_1k5DimLast_AtLeast5x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:       1000,
+		Dimensions:  5,
+		Position:    bench.Last,
+		Selectivity: bench.Unique,
+		RangeDims:   1,
+	}
+	assertSpeedup(t, "1k/5d/1-Range/Last", w, 5.0)
+}
+
+// TestSuccessBar_Range_10k5DimNoHit_AtLeast30x: 10k-scale version
+// of the range cell. Bar matches v0.10.0's OpNeq relaxation.
+func TestSuccessBar_Range_10k5DimNoHit_AtLeast30x(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping perf gate under -short")
+	}
+	w := bench.Workload{
+		Rules:       10000,
+		Dimensions:  5,
+		Position:    bench.NoHit,
+		Selectivity: bench.Unique,
+		RangeDims:   1,
+	}
+	assertSpeedup(t, "10k/5d/1-Range/NoHit", w, 30.0)
 }

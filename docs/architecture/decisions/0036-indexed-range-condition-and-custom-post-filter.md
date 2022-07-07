@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed — target v0.11.0. Third of five Phase-4 parity-closure
-releases. Adds numeric-range matching (a long-requested
-parity-target shape) and the small extension hook that lets callers
-plug in their own typed `Condition` shapes without forking the
-package.
+Accepted — landed in v0.11.0. New `parser.RangeCondition`;
+`engine/indexed` recognizes it natively as a post-filter; new
+`Engine.WithPostFilterHook(h)` lets callers admit additional
+custom typed-Condition shapes without forking. Both v0.11.0
+success-bar cells clear at 100× / 2 936× firstmatch; existing
+v0.8.0 / v0.9.0 / v0.10.0 bars hold.
 
 ## Context
 

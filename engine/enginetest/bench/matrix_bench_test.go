@@ -61,9 +61,10 @@ func IndexedFactory() (engine.Engine, bench.StructuredSeedFunc) {
 // indexedRuleMatch composes an indexed.Rule.Match from a RuleSpec.
 // Returns a single condition if only one field is constrained, else
 // an AndCondition over all constraints. KeyValues become OpEq;
-// InValues become OpIn; NeqValues (v0.10.0, ADR-0035) become OpNeq.
+// InValues become OpIn; NeqValues become OpNeq; RangeBounds
+// (v0.11.0, ADR-0036) become RangeCondition.
 func indexedRuleMatch(spec bench.RuleSpec) parser.Condition {
-	total := len(spec.KeyValues) + len(spec.InValues) + len(spec.NeqValues)
+	total := len(spec.KeyValues) + len(spec.InValues) + len(spec.NeqValues) + len(spec.RangeBounds)
 	children := make([]parser.Condition, 0, total)
 	for k, v := range spec.KeyValues {
 		children = append(children, parser.StringCondition{Field: k, Op: parser.OpEq, Value: v})
@@ -73,6 +74,9 @@ func indexedRuleMatch(spec bench.RuleSpec) parser.Condition {
 	}
 	for k, v := range spec.NeqValues {
 		children = append(children, parser.StringCondition{Field: k, Op: parser.OpNeq, Value: v})
+	}
+	for k, b := range spec.RangeBounds {
+		children = append(children, parser.RangeCondition{Field: k, Min: b[0], Max: b[1]})
 	}
 	if len(children) == 1 {
 		return children[0]

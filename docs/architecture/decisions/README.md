@@ -61,4 +61,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0033](0033-indexed-adapter.md) | The Indexed Adapter | ✅ Accepted |
 | [0034](0034-indexed-set-membership-and-wildcards.md) | Set-Membership and Wildcard Semantics in engine/indexed | ✅ Accepted |
 | [0035](0035-indexed-negation-and-value-expression-syntax.md) | Negation in engine/indexed and Value-Expression Syntax in engine/parser | ✅ Accepted |
-| [0036](0036-indexed-range-condition-and-custom-post-filter.md) | Numeric Range and Caller-Defined Custom Conditions in engine/indexed | 🟡 Proposed |
+| [0036](0036-indexed-range-condition-and-custom-post-filter.md) | Numeric Range and Caller-Defined Custom Conditions in engine/indexed | ✅ Accepted |
