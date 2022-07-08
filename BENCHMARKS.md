@@ -52,6 +52,17 @@ The growth is linear in rule count for all three adapters — none of them index
 
 This is the cell the indexed adapter must **not** regress on — small rule sets pay the index's fixed overhead without amortizing it.
 
+## v0.11.0 success bar — numeric range — ✅ CLEARED
+
+ADR-0036 admits `parser.RangeCondition` as a post-filter and adds the small `WithPostFilterHook` extension so callers can register their own typed-Condition shapes. The range Eval parses the input value via `strconv.ParseFloat` (~30 ns) and compares two floats (~1 ns); the per-candidate cost is similar in magnitude to v0.10.0's OpNeq.
+
+| Cell | `firstmatch` baseline | Required multiplier | Indexed live | Result |
+|---|---:|---:|---:|:---:|
+| 1k rules, 5 dims, 1 of 5 fields is `RangeCondition`, `Last` | ~41 700 ns/op | ≥ 5× faster | ~414 ns/op (~100×) | ✅ |
+| 10k rules, 5 dims, 1 `RangeCondition`, `NoHit` | ~417 000 ns/op | ≥ 30× faster | ~142 ns/op (~2 936×) | ✅ |
+
+The 1k/Last cell shows the post-filter cost: indexed at 414 ns vs ~173 ns for v0.9.0 equality-only (+240 ns per candidate for `strconv.ParseFloat` + bound check). The 10k/NoHit cell shows zero cost because the bucket misses before the post-filter runs.
+
 ## v0.10.0 success bar — negation post-filter — ✅ CLEARED
 
 ADR-0035 admits `StringCondition{Op: OpNeq}` and `SetCondition{Op: OpNotIn}` as post-filters on bucket hits in `engine/indexed`. The 1k cell shows the real cost of the post-filter — an extra ~190 ns/op vs the equality baseline because of the per-candidate `Condition.Eval`. The 10k NoHit cell is unaffected because the bucket misses before the post-filter ever runs.

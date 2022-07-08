@@ -9,7 +9,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.11.0 just shipped. New entries land here._
+
+## [0.11.0] - 2022-07-08
+
+Eleventh minor release. Third of five Phase-4 follow-ups. Adds numeric-range matching to `engine/indexed` via a new `parser.RangeCondition`, plus a small extension hook so callers can register their own typed-Condition shapes without forking the package. Additive (no breaking changes from v0.10.x).
+
+### Added
+
+- `engine/parser.RangeCondition{Field, Min, Max}` -- inclusive numeric range over float64. `Eval` parses the input field's string value via `strconv.ParseFloat`; returns false on missing / non-string / non-numeric. `math.Inf(-1)` and `math.Inf(+1)` are valid bound values for half-open intervals. Same type-assertion conventions as the existing `StringCondition` / `SetCondition` (value form + pointer form both accepted by `engine/indexed`). ADR-0036.
+- `engine/indexed` recognizes `RangeCondition` natively as a post-filter. The walk in `extractIndexablePairs` adds two new cases (value + pointer). Pure-range rules (no indexable term) return `ErrNoIndexableTerms`, same path as pure-negation rules from v0.10.0.
+- `Engine.WithPostFilterHook(h)` -- caller-supplied classifier for typed Conditions the built-in classifier doesn't recognize. When the hook returns true, the unknown Condition is treated as a post-filter (appended to `indexedRule.postFilter` and `Eval`'d at Execute time). Method-chainable, replaces any prior hook. Cannot override built-in classification.
+- `engine/enginetest/bench` gains `RuleSpec.RangeBounds map[string][2]float64` and `Workload.RangeDims int`. The structured generator emits `RangeCondition`s for the tail dims; the closure generator implements equivalent numeric-range checks via `strconv.ParseFloat`.
+- Two new v0.11.0 success-bar tests in `engine/indexed/success_bar_test.go`:
+  - 1k rules, 5 dims, 1 `RangeCondition` post-filter, `Last` -- ≥ 5× faster. Live: ~100×.
+  - 10k rules, same shape, `NoHit` -- ≥ 30× faster. Live: ~2 936×.
+- ADR-0036 Accepted. All v0.8.0 / v0.9.0 / v0.10.0 success-bar cells continue to gate.
+
+### Documentation
+
+- README adapter row and Stability section list `RangeCondition` as an indexable post-filter shape; mention `WithPostFilterHook` as the extension mechanism.
+- BENCHMARKS.md gets a new "v0.11.0 success bar" section listing the two new cells and the per-candidate cost breakdown.
+- Cookbook's "What's indexable" list extends with `RangeCondition` and the custom-condition pattern.
 
 ## [0.10.0] - 2022-07-01
 

@@ -674,16 +674,61 @@ res, _ := e.Execute(context.Background(), engine.Request{
 // single-field key-set was registered first, so it wins the tie.)
 ```
 
-**What's indexable** (as of `v0.10.0`):
+**What's indexable** (as of `v0.11.0`):
 
 - `parser.StringCondition{Op: OpEq, ...}` -- yes (since v0.8.0). Bucket-key contributor.
 - `parser.SetCondition{Op: OpIn, Values: [...]}` -- yes (since v0.9.0). Cartesian-product fan-out at AddRule. Empty value sets rejected; single-value behaves like OpEq. Fan-outs > 1024 rejected with `*FanoutTooLargeError`.
-- `parser.StringCondition{Op: OpNeq, ...}` -- yes (since v0.10.0) as a **post-filter** -- the rule still needs at least one indexable term (OpEq or OpIn) for the bucket-key.
-- `parser.SetCondition{Op: OpNotIn, Values: [...]}` -- yes (since v0.10.0) as a **post-filter** -- same constraint.
+- `parser.StringCondition{Op: OpNeq, ...}` -- yes (since v0.10.0) as a **post-filter**.
+- `parser.SetCondition{Op: OpNotIn, Values: [...]}` -- yes (since v0.10.0) as a **post-filter**.
+- `parser.RangeCondition{Field, Min, Max}` -- yes (since v0.11.0) as a **post-filter**. Inclusive numeric range; `math.Inf(±1)` for half-open intervals.
+- **Caller-defined typed Conditions** via `Engine.WithPostFilterHook(h)` (since v0.11.0). Any type implementing `parser.Condition` that the hook claims is admitted as a post-filter.
 - `parser.AndCondition` whose children are all the above -- yes.
 - **Wildcards via field omission**: a rule whose `Match` does not mention a particular field will fire regardless of that field's value in the input.
-- Pure-negation rules (no indexable term) -- **no**, returns `ErrNoIndexableTerms`. Use one of the linear adapters, or add at least one OpEq / OpIn term. The IndexDimension framework in v0.11.0 is the intended home.
-- `OrCondition`, `NotCondition` (typed) -- **no** in v0.10.0. Use one of the linear adapters.
+
+Every rule needs **at least one indexable** (bucket-key) term. Pure post-filter rules return `ErrNoIndexableTerms`.
+
+Example using RangeCondition:
+
+```go
+e.AddRule(indexed.Rule{
+    Name: "br-mid-tier-pricing",
+    Match: parser.AndCondition{Children: []parser.Condition{
+        parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+        parser.RangeCondition{Field: "amount", Min: 100, Max: 500},
+    }},
+    Action: func(interface{}) interface{} { return "mid-tier" },
+})
+
+res, _ := e.Execute(ctx, engine.Request{
+    Input: map[string]string{"country": "BR", "amount": "250"},
+})
+// res.Matched -> [br-mid-tier-pricing]
+```
+
+Example adding a custom condition via the hook:
+
+```go
+type prefixMatch struct {
+    Field  string
+    Prefix string
+}
+func (p *prefixMatch) Eval(fact map[string]interface{}) bool {
+    s, ok := fact[p.Field].(string)
+    return ok && strings.HasPrefix(s, p.Prefix)
+}
+
+e := indexed.New().WithPostFilterHook(func(c parser.Condition) bool {
+    _, ok := c.(*prefixMatch)
+    return ok
+})
+e.AddRule(indexed.Rule{
+    Name: "br-with-prefix",
+    Match: parser.AndCondition{Children: []parser.Condition{
+        parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+        &prefixMatch{Field: "carrier", Prefix: "alpha-"},
+    }},
+})
+```
 
 Example using OpIn:
 
