@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/helmedeiros/bre-go/engine"
@@ -50,32 +52,125 @@ type Rule struct {
 	ActionContext func(ctx context.Context, input interface{}) interface{}
 }
 
-// New returns an empty engine.
+// New returns an empty engine in the builder phase. Call AddRule to
+// register rules; call Build to seal (or let the first Execute call
+// implicitly seal). See ADR-0037 for the lifecycle.
 func New() *Engine {
 	return &Engine{
-		buckets:     map[string]*keysetBucket{},
-		keysetOrder: nil,
-		ruleNames:   map[string]struct{}{},
+		builder: newBuilderState(),
+	}
+}
+
+func newBuilderState() *builderState {
+	return &builderState{
+		buckets:   map[string]*keysetBucket{},
+		ruleNames: map[string]struct{}{},
 	}
 }
 
 // Engine is the indexed adapter. First-match semantics; insertion
 // order breaks ties among rules in the same bucket (per ADR-0019).
+//
+// Concurrency model (ADR-0037): two phases.
+//   - Builder phase: AddRule and WithPostFilterHook mutate the
+//     engine's builder state under mu. Not safe for concurrent
+//     Execute. Single-threaded "construct then use" pattern.
+//   - Built phase: Build seals the builder into an immutable
+//     snapshot held in an atomic.Value. Execute is lockless and
+//     safe for arbitrary concurrent callers. AddRule returns
+//     ErrEngineBuilt; WithPostFilterHook panics.
+//
+// An engine that never calls Build explicitly transitions on its
+// first Execute call (implicit Build under mu, then atomic Store).
+// Backward-compatible with v0.8.0–v0.11.0 callers.
 type Engine struct {
 	adapter.Notifier // promotes AddListener + Notify* (ADR-0029)
 
-	buckets     map[string]*keysetBucket
-	keysetOrder []string // insertion order of first-seen key-set IDs
-	ruleNames   map[string]struct{}
+	mu       sync.Mutex // protects builder during the build phase
+	builder  *builderState
+	snapshot atomic.Value // holds *snapshot once Build (explicit or implicit) runs
+}
 
-	// rulesInOrder mirrors AddRule order across all key-sets so
-	// RuleInfos can return rules in registration order even when
-	// buckets reorganize them.
-	rulesInOrder []Rule
-
-	// postFilterHook is consulted (when non-nil) for Conditions the
-	// built-in classifier doesn't recognize. See ADR-0036.
+// builderState carries the mutable rule-set under construction.
+// Reads on this struct must hold the engine's mu; the struct is
+// discarded once Build runs.
+type builderState struct {
+	buckets        map[string]*keysetBucket
+	keysetOrder    []string
+	ruleNames      map[string]struct{}
+	rulesInOrder   []Rule
 	postFilterHook PostFilterHook
+}
+
+// snapshot is the immutable read-side representation populated by
+// Build. Held in Engine.snapshot via atomic.Value; Execute reads
+// it lockless.
+type snapshot struct {
+	buckets        map[string]*keysetBucket
+	keysetOrder    []string
+	rulesInOrder   []Rule
+	postFilterHook PostFilterHook
+}
+
+// Build finalizes the engine: the current builder state becomes the
+// immutable snapshot that subsequent Execute calls read. Returns
+// ErrAlreadyBuilt if called twice.
+//
+// After Build, AddRule returns ErrEngineBuilt and WithPostFilterHook
+// panics. Execute is then safe for concurrent calls and runs
+// lockless against the snapshot.
+//
+// Callers who care about deterministic seal timing (and want to
+// avoid paying the build cost on a request) call Build explicitly
+// during startup. Callers who don't care let the first Execute
+// trigger Build implicitly. See ADR-0037.
+func (e *Engine) Build() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.builder == nil {
+		return ErrAlreadyBuilt
+	}
+	e.snapshot.Store(e.sealLocked())
+	return nil
+}
+
+// Built reports whether Build (or an implicit Build on Execute)
+// has finalized the engine. Useful for tests and lifecycle
+// assertions.
+func (e *Engine) Built() bool {
+	return e.snapshot.Load() != nil
+}
+
+// sealLocked moves the builder state into a fresh snapshot. Caller
+// must hold e.mu.
+func (e *Engine) sealLocked() *snapshot {
+	b := e.builder
+	s := &snapshot{
+		buckets:        b.buckets,
+		keysetOrder:    b.keysetOrder,
+		rulesInOrder:   b.rulesInOrder,
+		postFilterHook: b.postFilterHook,
+	}
+	e.builder = nil
+	return s
+}
+
+// readSnapshot returns the current snapshot, performing an
+// implicit Build if one hasn't happened yet. Lockless on the hot
+// path; takes mu only on the first call to perform the seal.
+func (e *Engine) readSnapshot() *snapshot {
+	if v := e.snapshot.Load(); v != nil {
+		return v.(*snapshot)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	// Recheck under mu in case another goroutine raced us to Build.
+	if v := e.snapshot.Load(); v != nil {
+		return v.(*snapshot)
+	}
+	s := e.sealLocked()
+	e.snapshot.Store(s)
+	return s
 }
 
 // PostFilterHook is a caller-supplied classifier for typed
@@ -97,8 +192,18 @@ type PostFilterHook func(c parser.Condition) (handled bool)
 // again replaces the previous hook. The hook does not affect
 // already-registered rules (those retain whatever classification
 // they had at the time AddRule was called).
+//
+// Must be called before Build (or before the first Execute that
+// would trigger implicit Build). Calling WithPostFilterHook on a
+// built engine panics -- the alternative would silently no-op,
+// hiding a programming error. See ADR-0037.
 func (e *Engine) WithPostFilterHook(h PostFilterHook) *Engine {
-	e.postFilterHook = h
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.builder == nil {
+		panic("indexed: WithPostFilterHook called on a built engine; install the hook before Build / first Execute")
+	}
+	e.builder.postFilterHook = h
 	return e
 }
 
@@ -146,7 +251,15 @@ func (e *Engine) AddRule(r Rule) error {
 	if r.Match == nil {
 		return ErrNilMatch
 	}
-	sets, postFilter, err := extractIndexablePairs(r.Match, e.postFilterHook)
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.builder == nil {
+		return ErrEngineBuilt
+	}
+	b := e.builder
+
+	sets, postFilter, err := extractIndexablePairs(r.Match, b.postFilterHook)
 	if err != nil {
 		return err
 	}
@@ -157,7 +270,7 @@ func (e *Engine) AddRule(r Rule) error {
 	if fanout > maxFanout {
 		return &FanoutTooLargeError{Rule: r.Name, Cardinality: fanout, Limit: maxFanout}
 	}
-	if _, dup := e.ruleNames[r.Name]; dup {
+	if _, dup := b.ruleNames[r.Name]; dup {
 		return ErrDuplicateRuleName
 	}
 
@@ -169,14 +282,14 @@ func (e *Engine) AddRule(r Rule) error {
 	}
 	keysetID := strings.Join(fields, unitSeparator)
 
-	bucket, ok := e.buckets[keysetID]
+	bucket, ok := b.buckets[keysetID]
 	if !ok {
 		bucket = &keysetBucket{fields: fields, byValueKey: map[string][]indexedRule{}}
-		e.buckets[keysetID] = bucket
-		e.keysetOrder = append(e.keysetOrder, keysetID)
+		b.buckets[keysetID] = bucket
+		b.keysetOrder = append(b.keysetOrder, keysetID)
 	}
 
-	e.rulesInOrder = append(e.rulesInOrder, r)
+	b.rulesInOrder = append(b.rulesInOrder, r)
 	ir := indexedRule{
 		name:       r.Name,
 		action:     r.Action,
@@ -189,25 +302,30 @@ func (e *Engine) AddRule(r Rule) error {
 		bucket.byValueKey[vk] = append(bucket.byValueKey[vk], ir)
 	})
 
-	e.ruleNames[r.Name] = struct{}{}
+	b.ruleNames[r.Name] = struct{}{}
 	return nil
 }
 
 // RuleNames returns the names of every registered rule in insertion
-// order. The returned slice is a fresh copy.
+// order. The returned slice is a fresh copy. Safe to call in either
+// the builder or the built phase.
 func (e *Engine) RuleNames() []string {
-	names := make([]string, len(e.rulesInOrder))
-	for i, r := range e.rulesInOrder {
+	rules := e.rulesView()
+	names := make([]string, len(rules))
+	for i, r := range rules {
 		names[i] = r.Name
 	}
 	return names
 }
 
 // RuleInfos returns metadata for every registered rule in insertion
-// order. Mirror of the other adapters' implementation.
+// order. Safe to call in either phase. Tags are defensively copied
+// so callers can mutate the returned slice without affecting
+// engine state.
 func (e *Engine) RuleInfos() []engine.RuleInfo {
-	infos := make([]engine.RuleInfo, len(e.rulesInOrder))
-	for i, r := range e.rulesInOrder {
+	rules := e.rulesView()
+	infos := make([]engine.RuleInfo, len(rules))
+	for i, r := range rules {
 		infos[i] = engine.RuleInfo{
 			Name:        r.Name,
 			Description: r.Description,
@@ -215,6 +333,20 @@ func (e *Engine) RuleInfos() []engine.RuleInfo {
 		}
 	}
 	return infos
+}
+
+// rulesView returns the current rules slice without forcing an
+// implicit Build. Always takes mu so the pre-Build and post-Build
+// branches are deterministically reachable (no race-only dead
+// code). RuleNames / RuleInfos aren't on the hot path, so the
+// mutex cost is fine.
+func (e *Engine) rulesView() []Rule {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if v := e.snapshot.Load(); v != nil {
+		return v.(*snapshot).rulesInOrder
+	}
+	return e.builder.rulesInOrder
 }
 
 func copyTags(tags []string) []string {
@@ -236,11 +368,17 @@ func copyTags(tags []string) []string {
 //
 // A nil ctx is treated as context.Background(). ctx.Err() is checked
 // at the top and between key-sets.
+//
+// Concurrency (ADR-0037): Execute is safe for arbitrary concurrent
+// callers after Build (or after the first Execute on an
+// unsealed engine, which triggers an implicit Build under mu).
 func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	start := time.Now()
+
+	snap := e.readSnapshot()
 
 	fact, err := coerceInput(req.Input)
 	if err != nil {
@@ -251,14 +389,14 @@ func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result
 
 	e.NotifyStarted(req.Input)
 
-	for _, keysetID := range e.keysetOrder {
+	for _, keysetID := range snap.keysetOrder {
 		if err := ctx.Err(); err != nil {
 			e.NotifyErrored(req.Input, err)
 			e.NotifyFinished(req.Input, nil, nil, time.Since(start))
 			return engine.Result{}, err
 		}
 
-		bucket := e.buckets[keysetID]
+		bucket := snap.buckets[keysetID]
 		valueKey, complete := projectFact(fact, bucket.fields)
 		if !complete {
 			// Input lacks a field this key-set requires -- no rule

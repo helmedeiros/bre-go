@@ -36,6 +36,19 @@ var ErrNoIndexableTerms = errors.New("indexed: match has no indexable terms (at 
 // map[string]interface{}).
 var ErrIncompatibleInput = errors.New("indexed: Execute input must be map[string]string or map[string]interface{}")
 
+// ErrEngineBuilt is returned by AddRule when the engine has been
+// finalized by Build (or by an implicit Build triggered on the
+// first Execute). Build a fresh engine for the new rule set and
+// swap it in via the hot-reload pattern documented in the cookbook.
+// See ADR-0037.
+var ErrEngineBuilt = errors.New("indexed: engine is already built; AddRule is only valid before Build (or before the first Execute)")
+
+// ErrAlreadyBuilt is returned by Build itself when called twice.
+// Build is idempotent in intent but the second call is a likely
+// caller bug, so we surface it rather than silently swallowing.
+// See ADR-0037.
+var ErrAlreadyBuilt = errors.New("indexed: Build called on an already-built engine")
+
 // FanoutTooLargeError is returned by AddRule when a rule's OpIn
 // expansion would produce more bucket entries than maxFanout. See
 // ADR-0034 §"What about the OpIn empty-set edge?". Caller fixes

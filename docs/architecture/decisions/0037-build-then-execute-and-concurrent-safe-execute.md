@@ -2,11 +2,14 @@
 
 ## Status
 
-Proposed — target v0.12.0. Fourth of five Phase-4 parity-closure
-releases. Adds a build-then-execute lifecycle on `engine/indexed`,
-makes `Execute` safe for concurrent calls from arbitrary goroutines,
-and documents the atomic-swap pattern for hot-reloading a populated
-engine.
+Accepted — landed in v0.12.0. `engine/indexed.Engine.Build()` +
+`Built()` shipped; lockless concurrent `Execute` against an
+atomic-snapshot via `sync/atomic.Value`. `engine/internal/adapter.Notifier`
+moved to copy-on-write listener semantics across all four adapters.
+All v0.8.0–v0.11.0 success-bar cells continue to pass; new
+concurrent + lifecycle tests gate `ci-local` under `-race`. Hot
+reload documented as a caller-side `atomic.Value` pattern (no new
+library type).
 
 ## Context
 
