@@ -22,6 +22,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Write rule conditions as strings](#write-rule-conditions-as-strings)
   - [Inspect parsed conditions as typed trees](#inspect-parsed-conditions-as-typed-trees)
   - [Use the indexed adapter for large equality-based rule sets](#use-the-indexed-adapter-for-large-equality-based-rule-sets)
+  - [Hot-reload an indexed engine](#hot-reload-an-indexed-engine)
 
 ## Patterns
 
@@ -778,3 +779,59 @@ err := engine.Load[TierConfig](loader, func(c TierConfig) error {
 ```
 
 The same `ChainProviders` and correlation-ID helpers work unchanged.
+
+### Hot-reload an indexed engine
+
+Since `v0.12.0`, `engine/indexed.Engine.Execute` is safe for concurrent calls after `Build()` (or after the first implicit Build). That's all you need to implement hot reload: build a new engine, atomic-swap, in-flight requests finish against the old engine.
+
+```go
+import (
+    "context"
+    "sync/atomic"
+
+    "github.com/helmedeiros/bre-go/engine"
+    "github.com/helmedeiros/bre-go/engine/indexed"
+)
+
+type RuleService struct {
+    current atomic.Value // holds *indexed.Engine
+}
+
+func NewRuleService(initial *indexed.Engine) *RuleService {
+    s := &RuleService{}
+    s.current.Store(initial)
+    return s
+}
+
+// Execute is safe to call from any number of goroutines.
+func (s *RuleService) Execute(ctx context.Context, req engine.Request) (engine.Result, error) {
+    return s.current.Load().(*indexed.Engine).Execute(ctx, req)
+}
+
+// Reload builds a fresh engine and atomically replaces the current one.
+// In-flight requests against the old engine finish naturally; new
+// requests use the new engine.
+func (s *RuleService) Reload(buildFn func() (*indexed.Engine, error)) error {
+    next, err := buildFn()
+    if err != nil {
+        return err
+    }
+    s.current.Store(next)
+    return nil
+}
+```
+
+The caller's `buildFn` constructs a new `*indexed.Engine`, populates it via `AddRule`, and calls `Build()`. The library doesn't ship a wrapper type — the four lines above are the whole pattern.
+
+Three things worth knowing:
+
+- **Listeners don't carry over.** If the old engine has listeners attached, re-attach them to the new engine inside `buildFn` before returning it.
+- **The old engine stays alive while goroutines reference it.** Memory frees naturally; no explicit Close required.
+- **Reloads serialize on the caller's side.** If two Reloads can overlap, wrap `Reload` in a `sync.Mutex` to prevent half-built engines from being stored.
+
+### Adapter lifecycle reference
+
+The four adapters differ in lifecycle:
+
+- `engine/inmemory`, `engine/firstmatch`, `engine/priority`: no explicit lifecycle. AddRule and Execute can interleave from a single goroutine. Not safe for concurrent Execute (will land in a future ADR if a real consumer asks).
+- `engine/indexed` (since v0.12.0): explicit `Build()` + `Built()` methods. Pre-Build: AddRule / WithPostFilterHook allowed. Post-Build: Execute is concurrent-safe and lockless; AddRule returns `ErrEngineBuilt`; WithPostFilterHook panics. First Execute triggers implicit Build on an unsealed engine.

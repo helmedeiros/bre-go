@@ -9,7 +9,38 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.12.0 just shipped. New entries land here._
+
+## [0.12.0] - 2022-07-15
+
+Twelfth minor release. Fourth of five Phase-4 follow-ups. Adds the build-then-execute lifecycle to `engine/indexed`, makes `Execute` safe for concurrent calls from arbitrary goroutines, and documents the atomic-swap pattern for hot-reloading a populated engine. Listener fan-out becomes concurrent-safe across all four adapters. Additive (no breaking changes from v0.11.x; existing callers continue to work via implicit Build on first Execute).
+
+### Added
+
+- `engine/indexed.Engine.Build()` -- finalizes the engine into an immutable snapshot held in `sync/atomic.Value`. After Build, `Execute` is safe for any number of concurrent goroutines, lockless on the read path. Returns `ErrAlreadyBuilt` on the second call. ADR-0037.
+- `engine/indexed.Engine.Built()` -- reports whether Build (explicit or implicit) has finalized the engine.
+- `ErrEngineBuilt` sentinel -- returned by `AddRule` when called on a sealed engine. `ErrAlreadyBuilt` -- returned by `Build` when called twice.
+- **Implicit Build on first `Execute`.** Callers from v0.8.0–v0.11.0 don't need to update their code; the first Execute triggers a Build under the engine's mutex; subsequent Executes run lockless. AddRule afterwards returns `ErrEngineBuilt`.
+- `engine/internal/adapter.Notifier` switched to copy-on-write listener slices held in `sync/atomic.Value`. `AddListener` serializes via an internal mutex and stores a fresh slice; `Notify*` methods Load once and iterate lockless. Benefits all four adapters; the v0.12.0 changes alone make concurrent `Execute` + `AddListener` race-free.
+
+### Changed
+
+- `engine/indexed.Engine` now panics if `WithPostFilterHook` is called after Build (the alternative — silent no-op — would hide a programming error). Document this as part of the lifecycle contract.
+- The indexed adapter's internal state moved from direct struct fields into a `builderState` (pre-Build, mutable) plus a `snapshot` (post-Build, immutable). External behavior unchanged; the refactor is invisible to callers.
+
+### Documentation
+
+- Cookbook gains a "Hot-reload an indexed engine" pattern: build a new engine, atomic-swap via `atomic.Value` in caller code. No new library type required.
+- README adapter row and Stability section mention `Build()` / `Built()` and the concurrent-safe Execute guarantee.
+
+### Testing
+
+- New `TestConcurrentExecuteSafe` runs 16 goroutines × 500 Executes against a populated engine under `-race`. Gates `ci-local`.
+- New `TestConcurrentListenersSafe` exercises the Notifier copy-on-write under `-race` with 8 executors + 4 attachers.
+- New lifecycle tests for state transitions (AddRule-after-Build, Build-twice, WithPostFilterHook-after-Build panic, RuleNames in both phases, implicit Build on Execute, hot-reload swap).
+- All v0.8.0 / v0.9.0 / v0.10.0 / v0.11.0 success-bar cells continue to gate. Alloc tripwire still pins at 2/op (snapshot Load is zero-alloc).
+
+ADR-0037 Accepted. 37 ADRs on `main`, 100% per-package coverage maintained.
 
 ## [0.11.0] - 2022-07-08
 
