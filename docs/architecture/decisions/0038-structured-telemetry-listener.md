@@ -2,11 +2,12 @@
 
 ## Status
 
-Proposed — target v0.13.0. Last of the five Phase-4 parity-closure
-releases. Adds a built-in `observability.StructuredTelemetryListener`
-that emits a typed `TelemetryRecord` per Execute via a caller-
-supplied sink. Closes the last parity-target observability gap and
-ends Phase 4.
+Accepted — landed in v0.13.0. `observability.TelemetryRecord` +
+`observability.TelemetrySink` + `observability.StructuredTelemetryListener`
+ship in the `observability` package. The listener implements all
+four lifecycle interfaces and emits records via the caller-
+supplied sink. Last of the five Phase-4 parity-closure releases;
+Phase 4 ends here.
 
 ## Context
 
