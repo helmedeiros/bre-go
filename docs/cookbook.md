@@ -23,6 +23,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Inspect parsed conditions as typed trees](#inspect-parsed-conditions-as-typed-trees)
   - [Use the indexed adapter for large equality-based rule sets](#use-the-indexed-adapter-for-large-equality-based-rule-sets)
   - [Hot-reload an indexed engine](#hot-reload-an-indexed-engine)
+  - [Wire structured telemetry on any engine](#wire-structured-telemetry-on-any-engine)
 
 ## Patterns
 
@@ -835,3 +836,55 @@ The four adapters differ in lifecycle:
 
 - `engine/inmemory`, `engine/firstmatch`, `engine/priority`: no explicit lifecycle. AddRule and Execute can interleave from a single goroutine. Not safe for concurrent Execute (will land in a future ADR if a real consumer asks).
 - `engine/indexed` (since v0.12.0): explicit `Build()` + `Built()` methods. Pre-Build: AddRule / WithPostFilterHook allowed. Post-Build: Execute is concurrent-safe and lockless; AddRule returns `ErrEngineBuilt`; WithPostFilterHook panics. First Execute triggers implicit Build on an unsealed engine.
+
+### Wire structured telemetry on any engine
+
+Since `v0.13.0`, `observability.StructuredTelemetryListener` emits a typed `TelemetryRecord` per Execute via a caller-supplied sink. Wire it on any adapter via `AddListener`; the listener implements every lifecycle interface and works identically across the four adapters.
+
+```go
+import (
+    "log"
+
+    "github.com/helmedeiros/bre-go/engine/indexed"
+    "github.com/helmedeiros/bre-go/observability"
+)
+
+func wireTelemetry(e *indexed.Engine) {
+    sink := func(rec observability.TelemetryRecord) {
+        if rec.Err != nil {
+            log.Printf("rule.execute error: input=%v err=%v", rec.Input, rec.Err)
+            return
+        }
+        log.Printf("rule.execute matched=%v duration=%s output=%v",
+            rec.Matched, rec.Duration, rec.Output)
+    }
+    e.AddListener(observability.NewStructuredTelemetryListener(sink))
+}
+```
+
+`TelemetryRecord` carries: `Input`, `Output`, `Matched []string`, `Duration time.Duration`, `Err error`. Sinks **must** be safe for concurrent calls (the v0.12.0 lifecycle makes Execute concurrent-safe, so listeners attached to a built engine see calls from multiple goroutines).
+
+**Emission model.** One record per terminal lifecycle event:
+
+- **Success Execute**: one record from `OnExecutionFinished`, `Err nil`.
+- **Errored Execute**: two records — one from `OnExecutionErrored` (`Err` non-nil), then one from `OnExecutionFinished` (`Err` nil, with the partial Output / Matched).
+
+Most consumers (loggers, metrics counters) treat the events independently. If your sink needs exactly one record per Execute, deduplicate by timestamp + Input pointer:
+
+```go
+type dedupSink struct {
+    seen sync.Map // map[any]time.Time keyed by Input pointer
+}
+func (s *dedupSink) record(rec observability.TelemetryRecord) {
+    key := fmt.Sprintf("%p", rec.Input) // pointer-shaped key
+    if _, loaded := s.seen.LoadOrStore(key, time.Now()); loaded {
+        return // already saw this Execute; drop the Finished follow-up
+    }
+    emit(rec)
+    // eviction: drop entries older than 1s (caller-side housekeeping)
+}
+```
+
+**Sampling, redaction, batching** all live in the sink. The library's listener is intentionally minimal — one struct copy + one function call per emission, no allocations beyond `TelemetryRecord` itself.
+
+**Why `NewStructuredTelemetryListener(nil)` panics.** A nil sink silently drops every record, hiding a wiring bug. The constructor surfaces it loudly.

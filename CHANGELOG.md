@@ -9,7 +9,34 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-_Nothing yet. New entries land here._
+_Nothing yet -- v0.13.0 just shipped. New entries land here._
+
+## [0.13.0] - 2022-07-22
+
+Thirteenth minor release. **Last of the five Phase-4 parity-closure follow-ups; Phase 4 ends here.** Adds a built-in `observability.StructuredTelemetryListener` that emits a typed `TelemetryRecord` per Execute via a caller-supplied sink. Closes the last parity-target observability gap. Additive (no breaking changes from v0.12.x).
+
+### Added
+
+- `observability.TelemetryRecord` -- struct carrying `Input`, `Output`, `Matched []string`, `Duration time.Duration`, `Err error`. One record per terminal lifecycle event.
+- `observability.TelemetrySink` -- type alias for `func(TelemetryRecord)`. Caller-supplied function the listener calls to emit records.
+- `observability.StructuredTelemetryListener` -- implements all four lifecycle interfaces (`ExecutionListener`, `ExecutionStartedListener`, `ExecutionFinishedListener`, `ExecutionErroredListener`). `OnRuleMatched` and `OnExecutionStarted` are no-ops; `OnExecutionFinished` emits a record with `Err nil`; `OnExecutionErrored` emits a record with `Err` set.
+- `observability.NewStructuredTelemetryListener(sink)` -- constructor; panics if sink is nil (silent telemetry-drop is a wiring bug worth surfacing).
+
+### Emission model
+
+One record per terminal lifecycle event. **Success Execute**: one record (from `OnExecutionFinished`, `Err nil`). **Errored Execute**: two records (`OnExecutionErrored` with `Err` set, then `OnExecutionFinished` with the partial result and `Err nil`). Sinks that want one record per Execute correlate by timestamp + Input pointer; most consumers (loggers, metrics counters) treat the events independently. See ADR-0038 §2.
+
+### Documentation
+
+- Cookbook gains "Wire structured telemetry on an indexed engine" with a logger sink example and the error-path deduplication pattern.
+- README Stability section adds `StructuredTelemetryListener` as stable since v0.13.0.
+
+### Testing
+
+- Unit tests cover all four lifecycle methods + nil-sink panic + concurrent emission from 16 goroutines + the two-record error-path contract.
+- Pre-tag external scientific test wires the listener to a test sink and verifies record contents for success, action panic, and ctx cancellation paths.
+
+ADR-0038 Accepted. 38 ADRs on `main`, 100% per-package coverage maintained. Phase 4 done.
 
 ## [0.12.0] - 2022-07-15
 
