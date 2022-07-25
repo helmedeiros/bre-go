@@ -64,3 +64,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0036](0036-indexed-range-condition-and-custom-post-filter.md) | Numeric Range and Caller-Defined Custom Conditions in engine/indexed | ✅ Accepted |
 | [0037](0037-build-then-execute-and-concurrent-safe-execute.md) | Build-then-Execute Lifecycle and Concurrent-Safe Execute | ✅ Accepted |
 | [0038](0038-structured-telemetry-listener.md) | Structured Telemetry Listener | ✅ Accepted |
+| [0039](0039-rule-set-diagnostics.md) | Rule-Set Diagnostics on engine/indexed | 🟡 Proposed |
