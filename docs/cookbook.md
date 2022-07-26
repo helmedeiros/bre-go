@@ -24,6 +24,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Use the indexed adapter for large equality-based rule sets](#use-the-indexed-adapter-for-large-equality-based-rule-sets)
   - [Hot-reload an indexed engine](#hot-reload-an-indexed-engine)
   - [Wire structured telemetry on any engine](#wire-structured-telemetry-on-any-engine)
+  - [Validate your rule set with Diagnose](#validate-your-rule-set-with-diagnose)
 
 ## Patterns
 
@@ -888,3 +889,45 @@ func (s *dedupSink) record(rec observability.TelemetryRecord) {
 **Sampling, redaction, batching** all live in the sink. The library's listener is intentionally minimal — one struct copy + one function call per emission, no allocations beyond `TelemetryRecord` itself.
 
 **Why `NewStructuredTelemetryListener(nil)` panics.** A nil sink silently drops every record, hiding a wiring bug. The constructor surfaces it loudly.
+
+### Validate your rule set with Diagnose
+
+Since `v0.14.0`, `engine/indexed.Engine` ships `Diagnose() DiagnoseReport` — a static analyzer that reports rules that can never fire because an earlier rule shadows them. Useful any time rules accumulate from incremental edits or arrive from external config.
+
+```go
+import (
+    "fmt"
+
+    "github.com/helmedeiros/bre-go/engine/indexed"
+    "github.com/helmedeiros/bre-go/engine/parser"
+)
+
+func validate(e *indexed.Engine) error {
+    report := e.Diagnose()
+    if len(report.DeadRules) == 0 {
+        return nil
+    }
+    for _, d := range report.DeadRules {
+        fmt.Printf("dead rule %q shadowed by %q: %s\n", d.Name, d.ShadowedBy, d.Reason)
+    }
+    return fmt.Errorf("%d dead rule(s) detected", len(report.DeadRules))
+}
+```
+
+Wire it into startup validation to fail-fast on dead rules before serving traffic:
+
+```go
+e := indexed.New()
+// ... AddRule calls ...
+if err := validate(e); err != nil {
+    log.Fatalf("rule set rejected: %v", err)
+}
+```
+
+`DeadRule` carries the dead rule's name, the earlier rule that shadows it, and a human-readable `Reason` (`"every input matching this rule also matches an earlier, less-constrained rule"`).
+
+**What Diagnose can and cannot prove.** The check is *conservative*: when the earlier rule has post-filter terms (OpNeq, OpNotIn, RangeCondition, or a custom hook-classified condition), Diagnose skips the pair — it can't statically determine whether the earlier rule would actually fire on every input. So a clean Diagnose doesn't prove no dead rules exist; it proves no dead rules exist *where the shadower has no post-filter*. Operationally, this catches the common case (most shadowing is between equality-only rules).
+
+**When to call it.** Diagnose is O(N² × F) — single-millisecond on a 1k-rule, 5-field engine. Safe at startup or admin-endpoint, not on the per-request hot path.
+
+**Phase compatibility.** Diagnose works in both pre-Build and post-Build phases (same as `RuleNames` / `RuleInfos`) and does not trigger implicit Build.
