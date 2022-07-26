@@ -184,33 +184,45 @@ func TestConcurrentExecuteSafe(t *testing.T) {
 }
 
 func TestConcurrentExecuteWithImplicitBuild(t *testing.T) {
-	// Same as above but without an explicit Build call. The first
-	// Execute to win the implicit-Build race should seal; the rest
-	// should see the same snapshot.
-	e := indexed.New()
-	_ = e.AddRule(indexed.Rule{
-		Name:  "r",
-		Match: parser.StringCondition{Field: "k", Op: parser.OpEq, Value: "v"},
-	})
-
-	const goroutines = 16
-	const itersPer = 200
+	// Without an explicit Build, many goroutines race to trigger
+	// implicit Build on first Execute. Use a release-barrier so
+	// every goroutine starts simultaneously -- this guarantees the
+	// double-checked-locking recheck inside readSnapshot fires
+	// (one goroutine wins the seal, others observe the snapshot
+	// already set under mu).
+	//
+	// Repeat the experiment multiple times to make the race-window
+	// observation deterministic under -race's scheduler.
+	const goroutines = 32
+	const itersPer = 50
+	const repeats = 50
 	ctx := context.Background()
 	req := engine.Request{Input: map[string]string{"k": "v"}}
 
-	var wg sync.WaitGroup
-	for g := 0; g < goroutines; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < itersPer; i++ {
-				_, _ = e.Execute(ctx, req)
-			}
-		}()
-	}
-	wg.Wait()
-	if !e.Built() {
-		t.Fatalf("Built should be true after concurrent Executes")
+	for rep := 0; rep < repeats; rep++ {
+		e := indexed.New()
+		_ = e.AddRule(indexed.Rule{
+			Name:  "r",
+			Match: parser.StringCondition{Field: "k", Op: parser.OpEq, Value: "v"},
+		})
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for g := 0; g < goroutines; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				for i := 0; i < itersPer; i++ {
+					_, _ = e.Execute(ctx, req)
+				}
+			}()
+		}
+		close(start) // release all goroutines simultaneously
+		wg.Wait()
+		if !e.Built() {
+			t.Fatalf("Built should be true after concurrent Executes")
+		}
 	}
 }
 

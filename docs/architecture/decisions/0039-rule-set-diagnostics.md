@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target v0.14.0. Adds `Engine.Diagnose()` for static
+Accepted — landed in v0.14.0. Adds `Engine.Diagnose()` for static
 rule-set analysis: reports rules that can never fire because an
 earlier rule shadows them. Defensive feature for any team
 operating a non-trivial rule set, motivated by implementation
