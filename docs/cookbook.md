@@ -306,7 +306,7 @@ This pattern lets a caller wire a single `evaluateAll` once and ship code that:
 
 - Works with `engine/inmemory` for tests and dev.
 - Works with `engine/priority` once rules are loaded from a config file.
-- Will work with a future `engine/gorules` adapter when GoRules Zen ships -- no change to `evaluateAll`.
+- Will work with any future backend-wrapping adapter -- no change to `evaluateAll`.
 
 If your helper needs a richer capability than the bare `engine.Engine` port provides, take the capability interface in the signature instead:
 

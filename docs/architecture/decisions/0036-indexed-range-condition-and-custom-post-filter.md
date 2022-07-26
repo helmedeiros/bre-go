@@ -19,13 +19,13 @@ After v0.10.0 the indexed adapter natively recognizes:
 - `SetCondition{Op: OpNotIn}` — post-filter
 - Field omission — wildcard via key-set walking
 
-What's still missing relative to the parity target:
+What's still missing from real-world coverage:
 
 - **Numeric range** (`amount >= 100 AND amount <= 500`). Real
   production rule sets carry these for tariff bounds, eligibility
   windows, etc.
-- **Caller-defined custom shapes**. The parity target has an
-  abstract `IndexDimension` mechanism that lets the embedding
+- **Caller-defined custom shapes**. Adjacent rule-engine designs
+  expose an abstract dimension mechanism that lets the embedding
   application teach the engine about new dimension types
   (hierarchical lookups, geo proximity, prefix matches). Today our
   adapter has a closed switch — anything not in the four

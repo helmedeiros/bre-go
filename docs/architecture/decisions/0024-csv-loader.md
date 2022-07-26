@@ -21,7 +21,7 @@ Three design questions:
 - (a) `engine/csv` -- sibling to `engine/inmemory`, `engine/firstmatch`, `engine/priority`.
 - (b) `engine/load/csv` -- nested under a `load/` umbrella that future loaders share.
 
-Pick (a). One level of nesting matches every other adapter. A `engine/json` or `engine/yaml` later would also sit at the top level. The Java parity target has separate Maven modules (`rule-matcher`, `routes-markup`) for each; we do not need that ceremony in Go, but we do want consistent depth.
+Pick (a). One level of nesting matches every other adapter. A `engine/json` or `engine/yaml` later would also sit at the top level. We want consistent depth across the loader sub-packages so callers don't have to memorize which formats live where.
 
 **2. What's the loader's shape?**
 
@@ -119,6 +119,6 @@ The library gains the ability to load rules from any CSV source. The eight-packa
 
 The pattern (one provider type per format, all satisfying `engine.RuleConfigProvider`) sets the template every future loader follows. When `engine/json` lands (no ADR yet), it gains a `Loader[RC]` with the same shape. The parser closure handles JSON-specific decoding; the abstraction is identical.
 
-The `LoadError` shape is intentionally compact. Future fields (line content, raw bytes, character offset within row) land if a real caller needs them. The Java parity target has a richer `RuleConfigLoadException` with these details; we add them as they earn their keep.
+The `LoadError` shape is intentionally compact. Future fields (line content, raw bytes, character offset within row) land if a real caller needs them. Richer error types exist in adjacent ecosystems; we add fields as they earn their keep, not preemptively.
 
 A future "watch this file for changes and reload" capability lands as a separate ADR -- not as part of this Loader. It would likely live in `engine/csv/watch` or be a wrapping `WatchableProvider[RC]` on top of `Loader[RC]`.

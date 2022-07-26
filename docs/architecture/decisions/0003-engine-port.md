@@ -29,10 +29,9 @@ type Engine interface {
 Implementations of `Engine` live in sub-packages:
 
 - `engine/inmemory` -- a trivial implementation used for tests and examples. The first one we will write.
-- `engine/gorules` -- the production-target adapter, planned for adoption when GoRules Zen ships a public release (mid-2023 expected).
-- `engine/<future>` -- any later backend that satisfies the same `Engine` interface.
+- `engine/<future>` -- any later backend that satisfies the same `Engine` interface, including ones wrapping external rule-engine libraries when a compelling candidate is available.
 
-Each adapter is a separate Go package importing `engine` and translating between our `Context`/`Result` and the underlying engine's types. **Adapter types never leak across the package boundary.** A caller importing `engine/gorules` gets a constructor that returns `engine.Engine`, not a GoRules-specific type.
+Each adapter is a separate Go package importing `engine` and translating between our `Context`/`Result` and the underlying engine's types. **Adapter types never leak across the package boundary.** A caller importing a backend adapter gets a constructor that returns `engine.Engine`, never a backend-specific type.
 
 Until Go generics arrive (1.18, ~March 2022), `Context` carries inputs as `interface{}` with type-checked accessors. ADR-0004 will retrofit a parameterised executor on top of the same `Engine` interface; the interface itself stays untyped, the executor layer above it gains generics.
 
@@ -44,9 +43,9 @@ The port being defined before any implementation forces the first commits of rea
 2. The contract test suite that every implementation must satisfy.
 3. The first trivial implementation (in-memory) used to prove the interface is implementable.
 
-Only after that do we evaluate concrete backends. When GoRules Zen ships, the adapter is a single new package; nothing in the public API or in caller code needs to change. The same is true for any later backend.
+Only after that do we evaluate concrete backends. When a viable external engine emerges, the adapter is a single new package; nothing in the public API or in caller code needs to change. The same is true for any later backend.
 
-The "no engine type on the public surface" rule is load-bearing. A future PR that adds a constructor returning `*gorules.Session` (instead of `engine.Engine`) breaks ADR-0001's promise and must be rejected, even if the diff looks small.
+The "no engine type on the public surface" rule is load-bearing. A future PR that returns a backend-specific session type (instead of `engine.Engine`) breaks ADR-0001's promise and must be rejected, even if the diff looks small.
 
 The cost of the port is one indirection per call. Measured against the value of being able to evaluate engines without rewriting callers, it pays for itself many times over.
 

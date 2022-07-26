@@ -10,7 +10,7 @@ ADR-0027 shipped `engine/parser.Parse` returning a `Predicate` -- a `func(map[st
 
 1. **JSON serialization.** A closure cannot be marshalled. A typed tree of structs can.
 2. **Introspection.** "What fields does this rule reference?" requires walking the expression tree. A closure hides the structure.
-3. **Optimization.** Phase 4's indexed matcher needs to extract bucket keys from conditions -- "this rule's `tier IN ('vip', 'premium')` becomes bucket `tier=vip` and bucket `tier=premium`." Closures expose nothing.
+3. **Optimization.** A future indexed matcher needs to extract bucket keys from conditions -- "this rule's `tier IN ('vip', 'premium')` becomes bucket `tier=vip` and bucket `tier=premium`." Closures expose nothing.
 4. **Equality / dedup.** Two rule sets containing the same condition expression can be deduped if conditions are values, not closures.
 
 ADR-0027 deliberately deferred this:
@@ -142,7 +142,7 @@ This is `parser.AsCondition` (which takes a `Predicate`) for the typed-tree case
 
 JSON marshalling becomes possible for any Condition tree the parser produces, unlocking the JSON loader work that follows in v0.7.0 (a separate ADR will specify the JSON shape). The encoding/decoding work itself lives in `engine/json` -- not in `engine/parser`. Keeping parser dependency-free preserves its zero-third-party-imports property.
 
-Phase 4's indexed matcher gains a clean dependency surface: it can take a `Condition` tree and extract bucket dimensions by pattern-matching on `StringCondition` and `SetCondition` nodes. That work was previously blocked by the closure-based representation; this ADR unblocks it.
+Future indexed-matcher work gains a clean dependency surface: any such matcher can take a `Condition` tree and extract bucket dimensions by pattern-matching on `StringCondition` and `SetCondition` nodes. That work was previously blocked by the closure-based representation; this ADR unblocks it.
 
 What's deliberately deferred:
 

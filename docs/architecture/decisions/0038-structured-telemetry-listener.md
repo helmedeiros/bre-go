@@ -6,23 +6,22 @@ Accepted — landed in v0.13.0. `observability.TelemetryRecord` +
 `observability.TelemetrySink` + `observability.StructuredTelemetryListener`
 ship in the `observability` package. The listener implements all
 four lifecycle interfaces and emits records via the caller-
-supplied sink. Last of the five Phase-4 parity-closure releases;
-Phase 4 ends here.
+supplied sink.
 
 ## Context
 
-After v0.12.0, every shape gap relative to the parity target is
-closed and `Execute` is concurrent-safe with documented hot reload.
+By v0.12.0, the indexed adapter has cleared its shape contract
+gaps and `Execute` is concurrent-safe with documented hot reload.
 What's left is the observability story.
 
-The parity target's matcher emits a structured log per Execute
-containing latency, matched-rule name, and a small handful of other
-fields. Today's bre-go observability primitives (`CountingListener`,
-`LoggingListener`, `TimingListener`, `SnapshotListener`) are
-useful for tests and ad-hoc instrumentation but require callers to
-build their own "per-Execute record" type if they want the
-matcher-shaped emission a logging / metrics / tracing backend
-expects.
+Production rule-engine deployments emit a structured log per
+Execute containing latency, matched-rule name, and a small handful
+of other fields. Today's bre-go observability primitives
+(`CountingListener`, `LoggingListener`, `TimingListener`,
+`SnapshotListener`) are useful for tests and ad-hoc
+instrumentation but require callers to build their own
+"per-Execute record" type if they want the matcher-shaped
+emission a logging / metrics / tracing backend expects.
 
 v0.13.0 ships the missing built-in: a listener that captures the
 lifecycle events the adapters already emit and bundles them into a
@@ -224,7 +223,6 @@ under the v0.12.0 concurrency model.
 - Built-in structured emission for matching activity. No more
   hand-rolling a per-Execute record type — callers use the
   library's `TelemetryRecord` and wire whichever sink they need.
-- The last parity-target observability gap. Phase 4 ends here.
 
 ### Still open after v0.13.0
 
@@ -258,24 +256,7 @@ under the v0.12.0 concurrency model.
 - A pre-tag external scientific test wires the listener to a
   test sink and verifies record contents for the four lifecycle
   paths (success, action panic, ctx cancellation, no-match).
-- The structured listener also gets exercised in the parity test
-  fixture (`/tmp/bre-go-parity-fixture/`) to verify it integrates
-  with the existing lifecycle without breaking any of the 11
+- An external integration test fixture exercises the listener
+  against the indexed adapter end-to-end to verify it integrates
+  with the existing lifecycle without breaking any of the
   scenario cases.
-
-### What this closes about Phase 4
-
-Phase 4's five parity-closure releases ship in order:
-
-- v0.9.0 — `OpIn` set-membership + wildcard semantics (ADR-0034).
-- v0.10.0 — `OpNeq` post-filter + value-expression syntax (ADR-0035).
-- v0.11.0 — `RangeCondition` + custom post-filter hook (ADR-0036).
-- v0.12.0 — build-then-execute + concurrent Execute + hot reload (ADR-0037).
-- v0.13.0 — structured telemetry listener (this ADR).
-
-After v0.13.0 the indexed adapter has cleared every shape and
-operational gap the parity target exposes (within the documented
-intentional divergences: first-match vs last-match-wins,
-per-rule key-sets vs fixed dimensions). The next release work is
-Phase 5 (`engine/gorules` adapter, v0.14.0+), which still blocks
-on the upstream library's mid-2023 launch.

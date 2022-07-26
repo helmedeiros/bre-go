@@ -92,11 +92,11 @@ indistinguishable from the equivalent `StringCondition` shape.
 
 ### 3. How does wildcard work?
 
-The parity target's CSV format has every column on every row.
+Decision-table CSV formats typically have every column on every row.
 A `*` in a column means "this rule does not constrain this
-dimension." The loader has historically had to fan out the
-wildcard rule into every concrete value the dimension can take
-(Cartesian product against `knownValues`).
+dimension." Naïve loaders fan out the wildcard rule into every
+concrete value the dimension can take (Cartesian product against
+the dimension's known values).
 
 In `engine/indexed` we get this **for free** via the existing
 key-set walking. A rule that does not mention field `X` in its
