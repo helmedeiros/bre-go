@@ -32,7 +32,7 @@ Each provider can return `(nil, error)`. The chain has three options:
 
 Pick (a). The first-error semantic matches how `engine.Load` already short-circuits on `add` errors. Two providers erroring usually means two related problems (e.g., a directory unreadable, multiple files affected); the first one is enough signal. Callers wanting "collect all errors" can build their own combinator on top.
 
-**3. What about composition operators beyond chain?** Filter, map, dedup, sort, group-by-tag... these are tempting. None are in this ADR. `ChainProviders` is the one composition operator the parity target uses (the others can be done in the caller's bridging closure inside `engine.Load`). When a real caller asks for more, follow-up ADRs add them as targeted helpers, not as a general "stream" abstraction.
+**3. What about composition operators beyond chain?** Filter, map, dedup, sort, group-by-tag... these are tempting. None are in this ADR. `ChainProviders` covers the canonical composition use case — concatenate multiple sources in declared order. Anything else can be done in the caller's bridging closure inside `engine.Load`. When a real caller asks for more, follow-up ADRs add them as targeted helpers, not as a general "stream" abstraction.
 
 ## Decision
 

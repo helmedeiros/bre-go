@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-"Business Rule Engine" is a broad term. Existing tooling (GoRules Zen when it appears, OPA, JSON Logic, and others in adjacent ecosystems) covers a wide spectrum: from runtime pattern-matching engines with their own DSLs to embedded condition evaluators driven by JSON. The danger of starting another BRE without a constrained scope is producing a thin wrapper around someone else's engine that adds dependency without value.
+"Business Rule Engine" is a broad term. Existing tooling (OPA, JSON Logic, and others in adjacent ecosystems) covers a wide spectrum: from runtime pattern-matching engines with their own DSLs to embedded condition evaluators driven by JSON. The danger of starting another BRE without a constrained scope is producing a thin wrapper around someone else's engine that adds dependency without value.
 
 A common operational lesson across BRE deployments shapes the goals below: the engine itself is the smallest part of the problem; the integration surface, observability, and ability to swap engines are the parts that hurt later.
 

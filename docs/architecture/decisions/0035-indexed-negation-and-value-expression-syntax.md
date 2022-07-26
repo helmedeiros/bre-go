@@ -18,10 +18,10 @@ After v0.9.0, the indexed adapter covers:
 - `SetCondition{Op: OpIn}` — bucketed via Cartesian-product fan-out.
 - Field omission — wildcard, walked via the key-set mechanism.
 
-Negation remains rejected. That's the next obvious widening, both
-because the parity target uses it extensively (`!flight`, `!premium`)
-and because real-world rule sets have "everything except X" rules
-that don't fit any of the existing shapes.
+Negation remains rejected. That's the next obvious widening:
+real-world rule sets have "everything except X" rules
+(`!flight`, `!premium`) that don't fit any of the existing
+shapes.
 
 Negation cannot be cleanly fanned out the way set membership can. A
 rule `country != BR` semantically constrains `country` to one of
@@ -54,7 +54,7 @@ the perf characteristics. The IndexDimension framework will handle
 A second open question for v0.10.0: **CSV-shaped rule sources can't
 express operators positionally.** A CSV row has one cell per
 dimension; the cell contains the rule's value constraint for that
-dimension. The parity target's deployments encode operators inside
+dimension. Decision-table CSV conventions encode operators inside
 the cell value: `!flight` (negation), `flight|train` (alternatives),
 `*` (wildcard). Today our CSV loader has no way to translate these
 into typed Conditions; callers have to write per-cell parsing
@@ -121,8 +121,9 @@ train)` works in v0.10.0).
 
 ### 3. What's the value-expression grammar?
 
-Inspired by the parity target's CSV format, the grammar
-recognizes a small set of patterns inside a single string:
+The grammar recognizes a small set of patterns inside a single
+string, mirroring conventions common in decision-table CSV
+formats:
 
 ```
 value-expr := plain-value
@@ -138,8 +139,8 @@ alternatives := plain-value ("|" plain-value)+
 
 Combinations like `!a|b` are **not** in this grammar — parse
 error. Each cell is either negation OR alternatives, not both.
-The parity target's deployments don't mix them either, so this
-restriction is conservative but real-shaped.
+Real-world rule sources rarely mix the two; the restriction is
+conservative but matches actual usage.
 
 Special-character escaping (a literal `|` or `!` inside a value)
 is **out of scope** for v0.10.0. Real-world rule values for

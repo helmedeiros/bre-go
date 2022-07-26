@@ -42,4 +42,4 @@ The port abstraction proves out: two adapters, no `engine.Engine` change, same c
 
 The library now ships two policies. The README and CONTRIBUTING get a short "which adapter do I want?" section so callers do not have to read both packages to pick. The duplication of `Rule` and the validation sentinels is intentional -- a shared `engine/rules` package would couple every adapter to the same shape, which is the *opposite* of what the port pattern is for.
 
-When a third adapter arrives (the gorules-backed one in mid-2023, per ADR-0001), it does not need to look like either of these. It implements `engine.Engine` and brings its own rule shape native to gorules' schema.
+When a third adapter arrives, it does not need to look like either of these. It implements `engine.Engine` and brings its own rule shape native to whatever it wraps.

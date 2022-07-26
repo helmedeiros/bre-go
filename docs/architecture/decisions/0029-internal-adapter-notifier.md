@@ -66,7 +66,7 @@ Add `engine/internal/adapter` package with the `Notifier` type and its five meth
 
 The public API of each adapter does not change -- `AddListener` still exists (now via method promotion). Tests do not need updates beyond the helper-name change inside `Execute`. The `engine.ListenerHost` compile-time witnesses (`var _ engine.ListenerHost = (*Engine)(nil)`) continue to compile.
 
-The four other duplicated helpers (`evaluateCondition`, `hasAction`, `runAction`, `copyTags`) stay per-adapter for now. They're pure functions over the adapter's local `Rule` type; sharing them would require either (i) generics with a `Rule` constraint interface, or (ii) reflection. Neither is justified at this duplication level. Re-audit after Phase 4 lands more adapters.
+The four other duplicated helpers (`evaluateCondition`, `hasAction`, `runAction`, `copyTags`) stay per-adapter for now. They're pure functions over the adapter's local `Rule` type; sharing them would require either (i) generics with a `Rule` constraint interface, or (ii) reflection. Neither is justified at this duplication level. Re-audit when more adapters land.
 
 ## Consequences
 

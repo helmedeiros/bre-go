@@ -20,10 +20,10 @@ the pattern was deliberately reusable:
 This ADR is that loader. By v0.7.0 the library has shipped four
 releases of port-and-adapter discipline (`v0.1.0`–`v0.4.0`), an
 expression parser (`v0.5.0`), and a typed Condition tree (`v0.6.0`).
-JSON is the second-most-requested rule-definition format after CSV in
-the parity target's deployments: ops teams who do not own a
-spreadsheet pipeline ship rules as JSON blobs through config-service
-or Kubernetes ConfigMaps.
+JSON is the second-most-requested rule-definition format after CSV
+in service-side deployments: ops teams who do not own a spreadsheet
+pipeline ship rules as JSON blobs through config-service or
+Kubernetes ConfigMaps.
 
 Three questions:
 

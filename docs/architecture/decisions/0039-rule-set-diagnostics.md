@@ -2,13 +2,11 @@
 
 ## Status
 
-Proposed — target v0.14.0. Opportunistic improvement during the
-Phase-5 calendar gap (GoRules library doesn't ship until mid-2023).
-Adds an `Engine.Diagnose()` method that reports rules which cannot
-fire because an earlier rule shadows them. Not a parity gap; the
-parity target doesn't ship this either. It's a defensive feature
-for any team operating a non-trivial rule set, surfaced by
-implementation experience with v0.8.0–v0.13.0.
+Proposed — target v0.14.0. Adds `Engine.Diagnose()` for static
+rule-set analysis: reports rules that can never fire because an
+earlier rule shadows them. Defensive feature for any team
+operating a non-trivial rule set, motivated by implementation
+experience with the v0.8.0–v0.13.0 rule-shape surface.
 
 ## Context
 

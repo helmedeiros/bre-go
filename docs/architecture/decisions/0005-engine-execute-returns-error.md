@@ -40,7 +40,7 @@ This is a breaking change to the port. It costs one commit; no external users ex
 
 ## Consequences
 
-The error channel is real for the GoRules adapter (mid-2023): the underlying engine can return parse errors, evaluation errors, or resource-exhaustion errors. They surface through the port unmangled.
+The error channel is real for any backend adapter that wraps an external engine: such engines can return parse errors, evaluation errors, or resource-exhaustion errors. They surface through the port unmangled.
 
 The in-memory adapter rarely has anything to fail on, but it returns `nil` errors consistently so callers writing engine-agnostic code can rely on the signature.
 

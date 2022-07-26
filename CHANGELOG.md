@@ -13,7 +13,7 @@ _Nothing yet. New entries land here._
 
 ## [0.13.0] - 2022-07-22
 
-Thirteenth minor release. **Last of the five Phase-4 parity-closure follow-ups; Phase 4 ends here.** Adds a built-in `observability.StructuredTelemetryListener` that emits a typed `TelemetryRecord` per Execute via a caller-supplied sink. Closes the last parity-target observability gap. Additive (no breaking changes from v0.12.x).
+Thirteenth minor release. Adds a built-in `observability.StructuredTelemetryListener` that emits a typed `TelemetryRecord` per Execute via a caller-supplied sink. Additive (no breaking changes from v0.12.x).
 
 ### Added
 
@@ -36,11 +36,11 @@ One record per terminal lifecycle event. **Success Execute**: one record (from `
 - Unit tests cover all four lifecycle methods + nil-sink panic + concurrent emission from 16 goroutines + the two-record error-path contract.
 - Pre-tag external scientific test wires the listener to a test sink and verifies record contents for success, action panic, and ctx cancellation paths.
 
-ADR-0038 Accepted. 38 ADRs on `main`, 100% per-package coverage maintained. Phase 4 done.
+ADR-0038 Accepted. 38 ADRs on `main`, 100% per-package coverage maintained.
 
 ## [0.12.0] - 2022-07-15
 
-Twelfth minor release. Fourth of five Phase-4 follow-ups. Adds the build-then-execute lifecycle to `engine/indexed`, makes `Execute` safe for concurrent calls from arbitrary goroutines, and documents the atomic-swap pattern for hot-reloading a populated engine. Listener fan-out becomes concurrent-safe across all four adapters. Additive (no breaking changes from v0.11.x; existing callers continue to work via implicit Build on first Execute).
+Twelfth minor release. Adds the build-then-execute lifecycle to `engine/indexed`, makes `Execute` safe for concurrent calls from arbitrary goroutines, and documents the atomic-swap pattern for hot-reloading a populated engine. Listener fan-out becomes concurrent-safe across all four adapters. Additive (no breaking changes from v0.11.x; existing callers continue to work via implicit Build on first Execute).
 
 ### Added
 
@@ -71,7 +71,7 @@ ADR-0037 Accepted. 37 ADRs on `main`, 100% per-package coverage maintained.
 
 ## [0.11.0] - 2022-07-08
 
-Eleventh minor release. Third of five Phase-4 follow-ups. Adds numeric-range matching to `engine/indexed` via a new `parser.RangeCondition`, plus a small extension hook so callers can register their own typed-Condition shapes without forking the package. Additive (no breaking changes from v0.10.x).
+Eleventh minor release. Adds numeric-range matching to `engine/indexed` via a new `parser.RangeCondition`, plus a small extension hook so callers can register their own typed-Condition shapes without forking the package. Additive (no breaking changes from v0.10.x).
 
 ### Added
 
@@ -92,7 +92,7 @@ Eleventh minor release. Third of five Phase-4 follow-ups. Adds numeric-range mat
 
 ## [0.10.0] - 2022-07-01
 
-Tenth minor release. Second of five Phase-4 follow-ups. Widens `engine/indexed` to admit `OpNeq` / `OpNotIn` as post-filter terms (paired with at least one indexable term), and adds a value-expression mini-grammar in `engine/parser` for CSV-shaped callers. Additive (no breaking changes from v0.9.x).
+Tenth minor release. Widens `engine/indexed` to admit `OpNeq` / `OpNotIn` as post-filter terms (paired with at least one indexable term), and adds a value-expression mini-grammar in `engine/parser` for CSV-shaped callers. Additive (no breaking changes from v0.9.x).
 
 ### Added
 
@@ -136,7 +136,7 @@ Load is not gated by `ci-local` today -- the section is reference material for r
 
 ## [0.9.0] - 2022-06-22
 
-Ninth minor release. First of five Phase-4 follow-ups that incrementally widen what `engine/indexed` can match against. v0.9.0 admits `SetCondition{Op: OpIn}` (set membership) and documents wildcard semantics. Additive (no breaking changes from v0.8.0).
+Ninth minor release. Widens what `engine/indexed` can match against: admits `SetCondition{Op: OpIn}` (set membership) and documents wildcard semantics. Additive (no breaking changes from v0.8.0).
 
 ### Added
 
@@ -200,7 +200,7 @@ Patch release. Adds the cross-adapter performance benchmark harness ahead of v0.
 
 ## [0.7.0] - 2022-06-03
 
-Seventh minor release. Opens Phase 4's declarative-rule-loading second front: JSON joins CSV as a built-in rule source. Additive (no breaking changes from v0.6.0). Includes one internal-only refactor (ADR-0029) that does not affect the public surface.
+Seventh minor release. JSON joins CSV as a built-in rule source. Additive (no breaking changes from v0.6.0). Includes one internal-only refactor (ADR-0029) that does not affect the public surface.
 
 ### Added
 
@@ -222,7 +222,7 @@ Sixth minor release. Closes Phase 3 (Expression DSL). Additive (no breaking chan
 - `parser.ParseToCondition(expr) (Condition, error)` returns the typed tree for inspection / marshalling / transformation.
 - `parser.AsPredicate(c)` converts a typed Condition tree to a `Predicate`.
 - `parser.AsRuleCondition(c, factOf) func(interface{}) bool` bridges a typed Condition tree directly to `Rule.Condition`.
-- AND / OR chains flatten into N-ary `AndCondition` / `OrCondition` nodes (not nested binaries), making the tree easier to walk -- groundwork for Phase 4's indexed-matcher work.
+- AND / OR chains flatten into N-ary `AndCondition` / `OrCondition` nodes (not nested binaries), making the tree easier to walk -- groundwork for future indexed-matcher work.
 - Cookbook gains "Inspect parsed conditions as typed trees" with a field-collector type-switch example.
 - README Stability section adds the typed Condition tree.
 

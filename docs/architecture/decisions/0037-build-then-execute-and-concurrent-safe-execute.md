@@ -28,11 +28,12 @@ two production-grade gaps:
    service runs. Today's only path is "stop the service, restart
    with new rules" — not what consumers ship.
 
-The parity target solves both with the same primitive: an immutable
-snapshot of the indexed state, held in an atomic reference. Reads
-are lockless because the snapshot doesn't mutate; reloads swap the
-atomic reference; concurrent calls finish against whichever snapshot
-they Loaded.
+The canonical solution in this space is an immutable snapshot of
+the indexed state held in an atomic reference. Reads are lockless
+because the snapshot doesn't mutate; reloads swap the atomic
+reference; concurrent calls finish against whichever snapshot they
+Loaded. It's the standard pattern across rule-engine, routing-
+table, and feature-flag libraries.
 
 v0.12.0 adopts this pattern. The lifecycle change is small but
 load-bearing:
@@ -407,13 +408,11 @@ single-threaded Execute (no change).
   firstmatch / priority). They share the Notifier fix but not
   the build lifecycle; their rule slices are still mutated by
   AddRule without sync. A future ADR ports the lifecycle if
-  callers ask. The roadmap suggests this lives alongside the
-  v0.14.0 GoRules backend ADR — that adapter ships with
-  concurrent-safe Execute too.
+  callers ask.
 - **Higher-level hot-reload wrapper** (drain timeouts,
   generations, build-validation hooks). Out of scope; cookbook
   shows the pattern.
-- **Structured execution telemetry** — v0.13.0 (ADR-0040).
+- **Structured execution telemetry** — v0.13.0 (ADR-0038).
 
 ### Performance impact
 
