@@ -11,30 +11,18 @@ import (
 	"github.com/helmedeiros/bre-go/observability"
 )
 
-// Notifier wires observability.ExecutionListener callbacks. Embed
-// it (by value) into an adapter's Engine struct; the methods are
-// promoted to the embedding type so the adapter's public surface
-// gains AddListener for free.
-//
-// The zero value of Notifier is usable. Notifier is safe for
-// concurrent use across all four methods plus AddListener.
-//
-// Concurrency model (ADR-0037): the listener slice is held in an
-// atomic.Value via copy-on-write. AddListener serializes via mu,
-// loads the current slice, builds a fresh slice with one more
-// element, stores. Notify* methods Load the slice once and iterate
-// — lockless on the read path. Callers attaching listeners while
-// Execute runs see the new listener on subsequent Execute calls
-// (no synchronization point inside a single Execute).
+// Notifier provides listener fan-out. Embed by value into an
+// adapter's Engine; method promotion gives the adapter AddListener
+// and the Notify* methods for free. The zero value is usable and
+// safe for concurrent calls: AddListener serializes via mu and
+// copy-on-write stores the new slice; Notify* methods Load lockless.
 type Notifier struct {
 	mu        sync.Mutex   // serializes AddListener
 	listeners atomic.Value // []observability.ExecutionListener
 }
 
-// AddListener registers l. Subsequent Notify* calls dispatch to l
-// (and to every other registered listener) via type assertion at
-// notify time, so a listener that only implements OnRuleMatched
-// receives only matched events.
+// AddListener registers l. Lifecycle dispatch is via type assertion
+// at notify time, so listeners only opt into the events they implement.
 func (n *Notifier) AddListener(l observability.ExecutionListener) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -45,9 +33,6 @@ func (n *Notifier) AddListener(l observability.ExecutionListener) {
 	n.listeners.Store(next)
 }
 
-// load returns the current listener slice via the atomic Value.
-// Returns nil when no listener has ever been added (atomic.Value
-// returns nil on first Load).
 func (n *Notifier) load() []observability.ExecutionListener {
 	v := n.listeners.Load()
 	if v == nil {
@@ -56,7 +41,7 @@ func (n *Notifier) load() []observability.ExecutionListener {
 	return v.([]observability.ExecutionListener)
 }
 
-// NotifyMatched fires OnRuleMatched on every registered listener.
+// NotifyMatched fires OnRuleMatched on every listener.
 func (n *Notifier) NotifyMatched(rule string, input, output interface{}) {
 	listeners := n.load()
 	if len(listeners) == 0 {
@@ -68,8 +53,7 @@ func (n *Notifier) NotifyMatched(rule string, input, output interface{}) {
 	}
 }
 
-// NotifyStarted fires OnExecutionStarted on every listener that
-// implements observability.ExecutionStartedListener.
+// NotifyStarted fires OnExecutionStarted on listeners that implement it.
 func (n *Notifier) NotifyStarted(input interface{}) {
 	listeners := n.load()
 	for _, l := range listeners {
@@ -79,8 +63,7 @@ func (n *Notifier) NotifyStarted(input interface{}) {
 	}
 }
 
-// NotifyFinished fires OnExecutionFinished on every listener that
-// implements observability.ExecutionFinishedListener.
+// NotifyFinished fires OnExecutionFinished on listeners that implement it.
 func (n *Notifier) NotifyFinished(input, output interface{}, matched []string, duration time.Duration) {
 	listeners := n.load()
 	for _, l := range listeners {
@@ -90,8 +73,7 @@ func (n *Notifier) NotifyFinished(input, output interface{}, matched []string, d
 	}
 }
 
-// NotifyErrored fires OnExecutionErrored on every listener that
-// implements observability.ExecutionErroredListener.
+// NotifyErrored fires OnExecutionErrored on listeners that implement it.
 func (n *Notifier) NotifyErrored(input interface{}, err error) {
 	listeners := n.load()
 	for _, l := range listeners {

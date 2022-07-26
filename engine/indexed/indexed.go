@@ -1,11 +1,7 @@
-// Package indexed is the first sub-linear engine.Engine adapter.
-// Rules must be pure conjunctions of equality conditions (typed
-// parser.Condition trees) over a fact-map input; the adapter buckets
-// rules by (key-set, value-tuple) and resolves Execute via O(K) hash
-// lookups where K is the number of distinct key sets registered.
-//
-// See ADR-0033 for the design rationale and ADR-0031's
-// BENCHMARKS.md for the success bar versus the linear adapters.
+// Package indexed is a sub-linear engine.Engine adapter. Rules use
+// parser.Condition trees over a fact-map input; the adapter buckets
+// rules by (key-set, value-tuple) and resolves Execute in O(K) hash
+// lookups, where K is the number of distinct key-sets registered.
 package indexed
 
 import (
@@ -22,27 +18,16 @@ import (
 	"github.com/helmedeiros/bre-go/engine/parser"
 )
 
-// unitSeparator joins field names and value keys; the ASCII unit
-// separator (0x1F) does not appear in normal fact strings, so it
-// cannot collide with field names or values.
+// ASCII unit separator -- safe to join field names and values without collision.
 const unitSeparator = "\x1f"
 
-// maxFanout caps the bucket-expansion cost of a single rule whose
-// Match contains OpIn set-membership conditions. ADR-0034 §3 picked
-// 1024 empirically; future ADR revises if a real workload runs into
-// the cap. A rule exceeding it returns *FanoutTooLargeError at
-// AddRule -- caller fixes the rule rather than the engine eating
-// unbounded memory.
+// maxFanout caps OpIn Cartesian expansion at AddRule. Rules exceeding
+// it return *FanoutTooLargeError so the caller fixes the shape
+// rather than the engine eating unbounded memory.
 const maxFanout = 1024
 
-// Rule is a typed-Condition rule for the indexed adapter. Description
-// and Tags surface through engine.RuleInfoLister; they do not
-// influence Execute. Match must be a pure conjunction of OpEq
-// StringConditions.
-//
-// Condition and Action follow the same shape the other adapters use:
-// Condition is the Match's compiled form; Action is the optional
-// outcome closure; ActionContext is the context-aware variant.
+// Rule is the indexed adapter's rule. Description and Tags surface via
+// engine.RuleInfoLister and do not influence matching.
 type Rule struct {
 	Name          string
 	Description   string
@@ -52,9 +37,7 @@ type Rule struct {
 	ActionContext func(ctx context.Context, input interface{}) interface{}
 }
 
-// New returns an empty engine in the builder phase. Call AddRule to
-// register rules; call Build to seal (or let the first Execute call
-// implicitly seal). See ADR-0037 for the lifecycle.
+// New returns an empty engine in the builder phase.
 func New() *Engine {
 	return &Engine{
 		builder: newBuilderState(),
@@ -69,31 +52,16 @@ func newBuilderState() *builderState {
 }
 
 // Engine is the indexed adapter. First-match semantics; insertion
-// order breaks ties among rules in the same bucket (per ADR-0019).
-//
-// Concurrency model (ADR-0037): two phases.
-//   - Builder phase: AddRule and WithPostFilterHook mutate the
-//     engine's builder state under mu. Not safe for concurrent
-//     Execute. Single-threaded "construct then use" pattern.
-//   - Built phase: Build seals the builder into an immutable
-//     snapshot held in an atomic.Value. Execute is lockless and
-//     safe for arbitrary concurrent callers. AddRule returns
-//     ErrEngineBuilt; WithPostFilterHook panics.
-//
-// An engine that never calls Build explicitly transitions on its
-// first Execute call (implicit Build under mu, then atomic Store).
-// Backward-compatible with v0.8.0–v0.11.0 callers.
+// order breaks ties. Builder phase mutates under mu; built phase
+// reads lockless from an atomic.Value snapshot.
 type Engine struct {
-	adapter.Notifier // promotes AddListener + Notify* (ADR-0029)
+	adapter.Notifier
 
-	mu       sync.Mutex // protects builder during the build phase
+	mu       sync.Mutex
 	builder  *builderState
-	snapshot atomic.Value // holds *snapshot once Build (explicit or implicit) runs
+	snapshot atomic.Value
 }
 
-// builderState carries the mutable rule-set under construction.
-// Reads on this struct must hold the engine's mu; the struct is
-// discarded once Build runs.
 type builderState struct {
 	buckets        map[string]*keysetBucket
 	keysetOrder    []string
@@ -102,9 +70,6 @@ type builderState struct {
 	postFilterHook PostFilterHook
 }
 
-// snapshot is the immutable read-side representation populated by
-// Build. Held in Engine.snapshot via atomic.Value; Execute reads
-// it lockless.
 type snapshot struct {
 	buckets        map[string]*keysetBucket
 	keysetOrder    []string
@@ -112,18 +77,9 @@ type snapshot struct {
 	postFilterHook PostFilterHook
 }
 
-// Build finalizes the engine: the current builder state becomes the
-// immutable snapshot that subsequent Execute calls read. Returns
-// ErrAlreadyBuilt if called twice.
-//
-// After Build, AddRule returns ErrEngineBuilt and WithPostFilterHook
-// panics. Execute is then safe for concurrent calls and runs
-// lockless against the snapshot.
-//
-// Callers who care about deterministic seal timing (and want to
-// avoid paying the build cost on a request) call Build explicitly
-// during startup. Callers who don't care let the first Execute
-// trigger Build implicitly. See ADR-0037.
+// Build seals the builder into an immutable snapshot. Subsequent
+// AddRule returns ErrEngineBuilt; subsequent Build returns
+// ErrAlreadyBuilt; Execute becomes safe for concurrent calls.
 func (e *Engine) Build() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -134,15 +90,11 @@ func (e *Engine) Build() error {
 	return nil
 }
 
-// Built reports whether Build (or an implicit Build on Execute)
-// has finalized the engine. Useful for tests and lifecycle
-// assertions.
+// Built reports whether Build (explicit or implicit) has finalized the engine.
 func (e *Engine) Built() bool {
 	return e.snapshot.Load() != nil
 }
 
-// sealLocked moves the builder state into a fresh snapshot. Caller
-// must hold e.mu.
 func (e *Engine) sealLocked() *snapshot {
 	b := e.builder
 	s := &snapshot{
@@ -155,16 +107,13 @@ func (e *Engine) sealLocked() *snapshot {
 	return s
 }
 
-// readSnapshot returns the current snapshot, performing an
-// implicit Build if one hasn't happened yet. Lockless on the hot
-// path; takes mu only on the first call to perform the seal.
 func (e *Engine) readSnapshot() *snapshot {
 	if v := e.snapshot.Load(); v != nil {
 		return v.(*snapshot)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	// Recheck under mu in case another goroutine raced us to Build.
+	// Another goroutine may have sealed while we waited for the lock.
 	if v := e.snapshot.Load(); v != nil {
 		return v.(*snapshot)
 	}
@@ -173,55 +122,26 @@ func (e *Engine) readSnapshot() *snapshot {
 	return s
 }
 
-// PostFilterHook is a caller-supplied classifier for typed
-// parser.Conditions the indexed adapter does not natively recognize
-// (the built-in StringCondition / SetCondition / RangeCondition
-// shapes). When the hook returns true, the adapter treats the
-// Condition as a post-filter (appended to indexedRule.postFilter
-// and Eval'd against the input at Execute time).
-//
-// The hook is consulted only AFTER the built-in classifier has
-// declined; it cannot override built-in behavior. See ADR-0036.
+// PostFilterHook classifies Conditions the built-in classifier does
+// not recognize. Returns true to admit the Condition as a post-filter.
 type PostFilterHook func(c parser.Condition) (handled bool)
 
-// WithPostFilterHook installs h on the engine. Subsequent AddRule
-// calls consult the hook before returning ErrNonIndexableCondition
-// for an unknown shape. Returns the engine to allow method chaining.
-//
-// Only one hook is active at a time; calling WithPostFilterHook
-// again replaces the previous hook. The hook does not affect
-// already-registered rules (those retain whatever classification
-// they had at the time AddRule was called).
-//
-// Must be called before Build (or before the first Execute that
-// would trigger implicit Build). Calling WithPostFilterHook on a
-// built engine panics -- the alternative would silently no-op,
-// hiding a programming error. See ADR-0037.
+// WithPostFilterHook installs h. Panics if called on a built engine.
 func (e *Engine) WithPostFilterHook(h PostFilterHook) *Engine {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.builder == nil {
-		panic("indexed: WithPostFilterHook called on a built engine; install the hook before Build / first Execute")
+		panic("indexed: WithPostFilterHook called on a built engine")
 	}
 	e.builder.postFilterHook = h
 	return e
 }
 
-// keysetBucket holds every rule whose Match constrains exactly the
-// fields in keysetID. Lookup is by the canonicalized value tuple.
 type keysetBucket struct {
-	fields     []string                 // sorted field names this key-set covers
-	byValueKey map[string][]indexedRule // value-tuple → rules
+	fields     []string
+	byValueKey map[string][]indexedRule
 }
 
-// indexedRule is the per-bucket form of a Rule. It carries the
-// minimum information Execute needs at lookup time; the full Rule
-// (Description, Tags, etc.) lives in Engine.rulesInOrder.
-//
-// postFilter is the list of non-indexable terms (OpNeq, OpNotIn)
-// that must Eval to true on the candidate input. Empty / nil when
-// the rule is pure-indexable, in which case the Execute hot path
-// skips the Eval entirely. Added in v0.10.0 per ADR-0035.
 type indexedRule struct {
 	name       string
 	action     func(input interface{}) interface{}
@@ -229,21 +149,10 @@ type indexedRule struct {
 	postFilter []parser.Condition
 }
 
-// AddRule registers r. Returns ErrEmptyRuleName / ErrNilMatch /
-// ErrDuplicateRuleName / ErrNonIndexableCondition /
-// ErrNoIndexableTerms / *FanoutTooLargeError depending on which
-// shape invariant the rule violates. Checks run shape-first,
-// state-second.
-//
-// Rule shapes:
-//   - OpEq / OpIn children contribute to the bucket key
-//     (Cartesian-product fan-out per ADR-0034).
-//   - OpNeq / OpNotIn children become post-filters evaluated at
-//     Execute time per ADR-0035.
-//   - A rule must have >= 1 indexable child; pure-negation rules
-//     return ErrNoIndexableTerms.
-//   - Empty value sets, duplicate indexable fields, and fan-outs
-//     exceeding maxFanout are rejected.
+// AddRule registers r. Returns one of: ErrEmptyRuleName, ErrNilMatch,
+// ErrEngineBuilt, ErrNonIndexableCondition, ErrNoIndexableTerms,
+// ErrDuplicateRuleName, *FanoutTooLargeError. Shape checks first,
+// engine-state checks second.
 func (e *Engine) AddRule(r Rule) error {
 	if r.Name == "" {
 		return ErrEmptyRuleName
@@ -306,9 +215,7 @@ func (e *Engine) AddRule(r Rule) error {
 	return nil
 }
 
-// RuleNames returns the names of every registered rule in insertion
-// order. The returned slice is a fresh copy. Safe to call in either
-// the builder or the built phase.
+// RuleNames returns rule names in insertion order. Fresh copy.
 func (e *Engine) RuleNames() []string {
 	rules := e.rulesView()
 	names := make([]string, len(rules))
@@ -318,10 +225,8 @@ func (e *Engine) RuleNames() []string {
 	return names
 }
 
-// RuleInfos returns metadata for every registered rule in insertion
-// order. Safe to call in either phase. Tags are defensively copied
-// so callers can mutate the returned slice without affecting
-// engine state.
+// RuleInfos returns rule metadata in insertion order. Tags are
+// deep-copied so callers can mutate without affecting engine state.
 func (e *Engine) RuleInfos() []engine.RuleInfo {
 	rules := e.rulesView()
 	infos := make([]engine.RuleInfo, len(rules))
@@ -335,11 +240,7 @@ func (e *Engine) RuleInfos() []engine.RuleInfo {
 	return infos
 }
 
-// rulesView returns the current rules slice without forcing an
-// implicit Build. Always takes mu so the pre-Build and post-Build
-// branches are deterministically reachable (no race-only dead
-// code). RuleNames / RuleInfos aren't on the hot path, so the
-// mutex cost is fine.
+// rulesView returns the current rules slice without forcing implicit Build.
 func (e *Engine) rulesView() []Rule {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -358,20 +259,10 @@ func copyTags(tags []string) []string {
 	return out
 }
 
-// Execute resolves a single matching rule via indexed lookup.
-//
-//  1. Coerce req.Input to a fact map (map[string]string preferred;
-//     map[string]interface{} stringified via fmt).
-//  2. For each registered key-set in insertion order, project the
-//     fact onto that key-set, look up the bucket, walk the
-//     candidates in insertion order, return on first match.
-//
-// A nil ctx is treated as context.Background(). ctx.Err() is checked
-// at the top and between key-sets.
-//
-// Concurrency (ADR-0037): Execute is safe for arbitrary concurrent
-// callers after Build (or after the first Execute on an
-// unsealed engine, which triggers an implicit Build under mu).
+// Execute returns the first matching rule. Input must be
+// map[string]string or map[string]interface{}. Nil ctx is treated as
+// context.Background(). Safe for concurrent calls after Build (or
+// after the first Execute, which triggers implicit Build).
 func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -399,18 +290,12 @@ func (e *Engine) Execute(ctx context.Context, req engine.Request) (engine.Result
 		bucket := snap.buckets[keysetID]
 		valueKey, complete := projectFact(fact, bucket.fields)
 		if !complete {
-			// Input lacks a field this key-set requires -- no rule
-			// in this bucket can match.
 			continue
 		}
 
 		candidates := bucket.byValueKey[valueKey]
-		var factMap map[string]interface{} // lazy-built for post-filter Eval
+		var factMap map[string]interface{} // lazy-built only when needed
 		for _, cand := range candidates {
-			// Indexable part of the rule is already known to match by
-			// virtue of the bucket invariant. If the rule carries a
-			// post-filter (OpNeq / OpNotIn terms per ADR-0035), evaluate
-			// it now; skip the rule if any term returns false.
 			if len(cand.postFilter) > 0 {
 				if factMap == nil {
 					factMap = factToInterfaceMap(fact)
@@ -467,26 +352,10 @@ type fieldValueSet struct {
 	values []string
 }
 
-// extractIndexablePairs walks Match and splits it into:
-//   - indexable terms (OpEq StringCondition, OpIn SetCondition)
-//     returned as []fieldValueSet for bucket-key construction.
-//   - post-filter terms (OpNeq StringCondition, OpNotIn SetCondition,
-//     RangeCondition, anything the caller-installed PostFilterHook
-//     claims) returned verbatim as []parser.Condition for runtime
-//     evaluation.
-//
-// Anything else (Or, Not, unrecognized custom shape with no hook,
-// empty value sets, duplicate indexable field) returns
-// ErrNonIndexableCondition.
-//
-// The values list of each indexable set is canonicalized: sorted
-// and deduplicated. This keeps the keyset / valueKey computation
-// stable regardless of source order.
-//
-// Pure-negation rules (zero indexable terms) return a populated
-// post-filter list with an empty index slice; AddRule then surfaces
-// ErrNoIndexableTerms. Splitting that decision out of the walker
-// keeps the walker focused on classification.
+// extractIndexablePairs splits Match into bucket-key contributors
+// (OpEq, OpIn) and post-filter terms (OpNeq, OpNotIn, RangeCondition,
+// anything the hook claims). Returns ErrNonIndexableCondition for
+// unrecognized shapes, empty value sets, or duplicate fields.
 func extractIndexablePairs(c parser.Condition, hook PostFilterHook) ([]fieldValueSet, []parser.Condition, error) {
 	var sets []fieldValueSet
 	var postFilter []parser.Condition
@@ -542,8 +411,6 @@ func collectSets(c parser.Condition, sets *[]fieldValueSet, post *[]parser.Condi
 		}
 		return nil
 	default:
-		// Built-in classifier doesn't recognize this shape. Consult
-		// the caller-installed hook (if any) per ADR-0036.
 		if hook != nil && hook(c) {
 			*post = append(*post, c)
 			return nil
@@ -578,9 +445,6 @@ func classifySetCondition(v parser.SetCondition, sets *[]fieldValueSet, post *[]
 	}
 }
 
-// canonicalizeValues returns a sorted, deduplicated copy of values.
-// Empty input returns nil so the empty-set rejection in
-// extractIndexablePairs catches it.
 func canonicalizeValues(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -598,11 +462,8 @@ func canonicalizeValues(values []string) []string {
 	return sorted[:n]
 }
 
-// cartesianFanout returns the number of bucket entries the rule will
-// produce -- the product of len(values) across all sets. Short-
-// circuits once the product crosses maxFanout so a pathological
-// rule does not allocate proportional scratch state before the
-// rejection.
+// cartesianFanout short-circuits past maxFanout to avoid scratch
+// allocation for rejected pathological shapes.
 func cartesianFanout(sets []fieldValueSet) int {
 	n := 1
 	for _, s := range sets {
@@ -614,10 +475,8 @@ func cartesianFanout(sets []fieldValueSet) int {
 	return n
 }
 
-// enumerateCombinations calls visit once per Cartesian-product
-// element across sets. The combo slice is reused between calls --
-// callers that need to retain the slice must copy it inside visit
-// (buildValueKey copies into a string already, so it's fine).
+// enumerateCombinations reuses combo between calls; visit must copy
+// if retention is required (buildValueKey already copies into a string).
 func enumerateCombinations(sets []fieldValueSet, visit func(combo []fieldValuePair)) {
 	combo := make([]fieldValuePair, len(sets))
 	for i, s := range sets {
@@ -658,9 +517,7 @@ func buildValueKey(pairs []fieldValuePair) string {
 	return b.String()
 }
 
-// projectFact builds the value key for a fact restricted to fields.
-// Returns complete=false if any required field is missing or carries
-// a non-string value.
+// projectFact returns ("", false) if any required field is missing.
 func projectFact(fact map[string]string, fields []string) (string, bool) {
 	var b strings.Builder
 	for i, f := range fields {
@@ -678,9 +535,8 @@ func projectFact(fact map[string]string, fields []string) (string, bool) {
 	return b.String(), true
 }
 
-// coerceInput converts the engine's opaque Input into a fact map.
-// map[string]string is the canonical shape; map[string]interface{}
-// is accepted and stringified via fmt.Sprintf("%v", ...).
+// coerceInput accepts map[string]string or map[string]interface{};
+// the latter is stringified via fmt.
 func coerceInput(in interface{}) (map[string]string, error) {
 	switch v := in.(type) {
 	case map[string]string:
@@ -703,10 +559,6 @@ func coerceInput(in interface{}) (map[string]string, error) {
 	}
 }
 
-// passesPostFilter returns true iff every condition in filter
-// evaluates to true against fact. Used by Execute after a bucket
-// hit to apply non-indexable predicates (OpNeq / OpNotIn) per
-// ADR-0035.
 func passesPostFilter(filter []parser.Condition, fact map[string]interface{}) bool {
 	for _, c := range filter {
 		if !c.Eval(fact) {
@@ -716,11 +568,6 @@ func passesPostFilter(filter []parser.Condition, fact map[string]interface{}) bo
 	return true
 }
 
-// factToInterfaceMap converts the canonical map[string]string fact
-// representation into the map[string]interface{} shape that
-// parser.Condition.Eval requires. Built lazily inside Execute and
-// only when at least one candidate has a post-filter, so rules
-// without negation pay zero cost.
 func factToInterfaceMap(fact map[string]string) map[string]interface{} {
 	out := make(map[string]interface{}, len(fact))
 	for k, v := range fact {
