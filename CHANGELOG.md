@@ -11,6 +11,36 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.14.0] - 2022-07-29
+
+Fourteenth minor release. Adds `engine/indexed.Engine.Diagnose()` -- a static rule-set analyzer that reports rules which can never fire because an earlier rule shadows them. Additive (no breaking changes from v0.13.x).
+
+### Added
+
+- `engine/indexed.DiagnoseReport{DeadRules []DeadRule}` -- value returned by `Diagnose`. Forward-compatible: future analyses (overlap, coverage) add fields without breaking callers.
+- `engine/indexed.DeadRule{Name, ShadowedBy, Reason}` -- one entry per detected dead rule. `Reason` is a fixed template (`"every input matching this rule also matches an earlier, less-constrained rule"`) so test suites can assert against it.
+- `engine/indexed.Engine.Diagnose() DiagnoseReport` -- conservative tier-1 dead-rule detector. A rule is reported dead iff every input that satisfies its match also satisfies some earlier rule's match *and* that earlier rule has no post-filter terms (`OpNeq`, `OpNotIn`, `RangeCondition`, hook-classified custom condition). Earlier rules with post-filters are skipped: their firing isn't decidable from shape alone, so we don't report. False positives are zero by design; false negatives are the accepted tradeoff. ADR-0039.
+
+### Phase compatibility
+
+Diagnose works in both engine phases (pre-Build via builder state, post-Build via snapshot) using the same `rulesView` helper as `RuleNames` / `RuleInfos`. Does not trigger implicit Build -- it's a meta-query, not a runtime invocation.
+
+### Complexity
+
+O(N² × F) over rule pairs × constrained fields. On a 1k-rule, 5-field engine that's ~5 million comparisons -- single-millisecond on modern hardware. Document as "startup-validation or admin-endpoint usage; not safe on the per-request hot path."
+
+### Documentation
+
+- Cookbook gains "Validate your rule set with Diagnose" showing the canonical call, a startup-validation wiring pattern (fail-fast on detection), the tier-1 conservatism note, and phase-compatibility guidance.
+- README Stability section adds `Engine.Diagnose` as stable since v0.14.0.
+
+### Testing
+
+- 16 unit tests in `engine/indexed/diagnose_test.go` covering: empty / single-rule reports, identical rules, narrower-after-broader, broader-after-narrower, disjoint rules on different fields/values, OpIn / OpEq cross-shadowing in both directions, earlier-rule-with-post-filter conservatism, later-rule-with-post-filter still-dead path, multi-field truth-table coverage, and WithPostFilterHook-classified custom conditions on both the earlier and the later rule.
+- `TestConcurrentExecuteWithImplicitBuild` made deterministic: release-barrier + repeated trials force the double-checked-locking inner recheck in `readSnapshot` to fire under `-race`'s scheduler. Lifts that path from ~88.9% to 100% coverage.
+
+ADR-0039 Accepted. 39 ADRs on `main`, 100% per-package coverage maintained.
+
 ## [0.13.0] - 2022-07-22
 
 Thirteenth minor release. Adds a built-in `observability.StructuredTelemetryListener` that emits a typed `TelemetryRecord` per Execute via a caller-supplied sink. Additive (no breaking changes from v0.12.x).
