@@ -68,6 +68,24 @@ func (e *FanoutTooLargeError) Error() string {
 // RuleName returns the name of the rejected rule.
 func (e *FanoutTooLargeError) RuleName() string { return e.Rule }
 
+// ErrSnapshotIncompatibleHook is returned by ExportSnapshot when the
+// engine has a PostFilterHook installed. Custom condition encoding is
+// a separate ADR; v0.15.0 refuses hook-bearing engines.
+var ErrSnapshotIncompatibleHook = errors.New("indexed: ExportSnapshot refuses engines with WithPostFilterHook installed")
+
+// ErrSnapshotEmpty is returned by ExportSnapshot when the engine has no rules.
+var ErrSnapshotEmpty = errors.New("indexed: ExportSnapshot refuses empty engines")
+
+// ErrSnapshotFormatVersionMismatch is returned by LoadSnapshot when
+// snap.FormatVersion does not equal the current SnapshotFormatVersion.
+// v0.15.0's contract is refuse-on-mismatch; no migration shims.
+var ErrSnapshotFormatVersionMismatch = errors.New("indexed: LoadSnapshot FormatVersion does not match current SnapshotFormatVersion")
+
+// ErrSnapshotMalformed is returned by LoadSnapshot when a
+// SnapshotCondition fails to decode (unknown type, unparseable Min/Max,
+// missing required field for its type tag).
+var ErrSnapshotMalformed = errors.New("indexed: LoadSnapshot decoded a malformed condition")
+
 // ActionPanicError is returned by Execute when a rule's Action panicked.
 // The adapter recovered the panic; the matched rule name is in
 // Result.Matched, but its Action did not complete.
