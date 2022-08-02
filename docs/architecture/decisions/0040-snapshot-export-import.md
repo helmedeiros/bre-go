@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target v0.15.0. Adds `Engine.ExportSnapshot() (*Snapshot, error)`
+Accepted — landed in v0.15.0. Adds `Engine.ExportSnapshot() (*Snapshot, error)`
 and `LoadSnapshot(*Snapshot, map[string]RuleCallbacks) (*Engine, error)`
 on `engine/indexed`. A `Snapshot` is the JSON-serializable
 representation of a built engine's rule set; `LoadSnapshot`
@@ -186,10 +186,12 @@ type RuleCallbacks struct {
 // implicit Build if not yet built. Returns:
 //   - ErrSnapshotIncompatibleHook if WithPostFilterHook was installed.
 //   - ErrSnapshotEmpty if the engine has no rules.
-//   - ErrSnapshotUnsupportedCondition if any rule's match contains
-//     a shape outside the four supported tagged-union variants
-//     (theoretically unreachable for a built engine, but checked
-//     defensively).
+//
+// A built engine cannot hold a Match shape outside the four
+// tagged-union variants -- AddRule rejects unknown shapes. The
+// encoder panics if invoked with anything else, surfacing an
+// internal classifier/encoder drift loudly rather than emitting
+// junk JSON.
 func (e *Engine) ExportSnapshot() (*Snapshot, error)
 
 // LoadSnapshot reconstructs an engine. Returns:
@@ -223,8 +225,8 @@ form. The encoder dereferences before classifying.
 Or / Not conditions never reach the encoder: a rule containing
 them would have been rejected at `AddRule` time with
 `ErrNonIndexableCondition`, so a built engine never carries them.
-The encoder treats them as `ErrSnapshotUnsupportedCondition` for
-defense.
+The encoder panics if invoked with such a shape -- guarding against
+classifier/encoder drift, not validating untrusted input.
 
 ### Decoding rules
 

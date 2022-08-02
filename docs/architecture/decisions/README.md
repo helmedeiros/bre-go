@@ -65,4 +65,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0037](0037-build-then-execute-and-concurrent-safe-execute.md) | Build-then-Execute Lifecycle and Concurrent-Safe Execute | ✅ Accepted |
 | [0038](0038-structured-telemetry-listener.md) | Structured Telemetry Listener | ✅ Accepted |
 | [0039](0039-rule-set-diagnostics.md) | Rule-Set Diagnostics on engine/indexed | ✅ Accepted (v0.14.0) |
-| [0040](0040-snapshot-export-import.md) | Snapshot Export and Import for engine/indexed | 🟡 Proposed |
+| [0040](0040-snapshot-export-import.md) | Snapshot Export and Import for engine/indexed | ✅ Accepted (v0.15.0) |
