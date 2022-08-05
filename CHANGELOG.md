@@ -11,6 +11,42 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.15.0] - 2022-08-05
+
+Fifteenth minor release. Adds `engine/indexed.Engine.ExportSnapshot()` and `engine/indexed.LoadSnapshot()` -- a JSON-serializable snapshot of an indexed engine's rule set, plus a matching loader that produces an already-Built engine ready to Execute. Build-once / deploy-many lifecycle for the indexed adapter. Additive (no breaking changes from v0.14.x).
+
+### Added
+
+- `engine/indexed.SnapshotFormatVersion` constant (currently `1`) -- LoadSnapshot refuses any other value with `ErrSnapshotFormatVersionMismatch`.
+- `engine/indexed.Snapshot{FormatVersion int, Rules []SnapshotRule}` -- top-level JSON shape. Insertion order is preserved (first-match semantics require it).
+- `engine/indexed.SnapshotRule{Name, Description, Tags, Match}` -- per-rule entry. Action and ActionContext callbacks are not encoded; LoadSnapshot re-attaches them by name via the rebuild map.
+- `engine/indexed.SnapshotCondition` -- tagged-union encoding of `parser.Condition`. `Type` is one of `"string"`, `"set"`, `"range"`, `"and"`. Or/Not never appear (AddRule rejects them on the indexed adapter). Range `Min`/`Max` are decimal strings so IEEE-754 infinity values (`"+Inf"` / `"-Inf"`) round-trip through `encoding/json`.
+- `engine/indexed.RuleCallbacks{Action, ActionContext}` -- per-rule callback pair attached at Load time. Rules absent from the rebuild map load callback-less.
+- `engine/indexed.Engine.ExportSnapshot() (*Snapshot, error)` -- serializes the rule set. Triggers implicit Build on an unsealed engine. Errors: `ErrSnapshotIncompatibleHook` (engine has a PostFilterHook installed), `ErrSnapshotEmpty` (no rules registered).
+- `engine/indexed.LoadSnapshot(*Snapshot, map[string]RuleCallbacks) (*Engine, error)` -- reconstructs an engine. The returned engine is already `Built()`. Errors: `ErrSnapshotFormatVersionMismatch`, `ErrSnapshotMalformed` (unknown Type, unparseable Min/Max), or any propagated AddRule error.
+
+### Format design
+
+Match-level encoding (the typed `parser.Condition` AST per rule) rather than source-level or compiled-internal-level. Holds the contract at the already-stable AST surface; bucket layout stays free to evolve. See ADR-0040 §1.
+
+Action callbacks are out-of-band, by name. Snapshot carries the match shape; the consumer binary supplies action implementations via `LoadSnapshot`'s rebuild map. This maps to the real operational contract: rules live in the artifact, code lives in the binary.
+
+### Hook compatibility
+
+Snapshot export and `WithPostFilterHook` are mutually exclusive in v0.15.0. Hook-bearing engines refuse to export with `ErrSnapshotIncompatibleHook`. A named encoder/decoder protocol for custom typed Conditions is a separate ADR.
+
+### Documentation
+
+- Cookbook gains "Build once, deploy many with snapshots" with full build-job and consumer-process examples, the callback-by-name contract, the hook-compatibility note, and the format-version policy.
+- README Stability section adds `Engine.ExportSnapshot` / `LoadSnapshot` / `Snapshot` / `RuleCallbacks` as stable since v0.15.0.
+
+### Testing
+
+- 23 unit tests in `engine/indexed/snapshot_test.go` covering: empty-engine refusal, hook-bearing refusal (both phases), FormatVersion stamping, nil-snapshot refusal, FormatVersion mismatch, malformed conditions (unknown Type, unparseable Min, unparseable Max, nested malformed children), AddRule error propagation, round-trip equivalence for each of the four condition shapes (string equality, set membership, string negation post-filter, set negation post-filter, range with finite bounds, range at every infinity combination, multi-condition AndCondition trees), insertion-order preservation, Description+Tags preservation (with alias-independence), callback attach by name (Action and ActionContext), callback-less loads, implicit-Build trigger on Export, loaded-engine-is-Built invariant, JSON marshal/unmarshal round-trip with infinity bounds, and snapshot-of-snapshot idempotence (byte-identical JSON across Export → Load → Export).
+- 2 internal-package tests in `engine/indexed/snapshot_internal_test.go` cover the encoder's defensive panic on an unreachable shape, plus pointer-variant encoding for all four supported types.
+
+ADR-0040 Accepted. 40 ADRs on `main`, 100% per-package coverage maintained.
+
 ## [0.14.0] - 2022-07-29
 
 Fourteenth minor release. Adds `engine/indexed.Engine.Diagnose()` -- a static rule-set analyzer that reports rules which can never fire because an earlier rule shadows them. Additive (no breaking changes from v0.13.x).

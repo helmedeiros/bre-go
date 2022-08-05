@@ -25,6 +25,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Hot-reload an indexed engine](#hot-reload-an-indexed-engine)
   - [Wire structured telemetry on any engine](#wire-structured-telemetry-on-any-engine)
   - [Validate your rule set with Diagnose](#validate-your-rule-set-with-diagnose)
+  - [Build once, deploy many with snapshots](#build-once-deploy-many-with-snapshots)
 
 ## Patterns
 
@@ -931,3 +932,65 @@ if err := validate(e); err != nil {
 **When to call it.** Diagnose is O(N² × F) — single-millisecond on a 1k-rule, 5-field engine. Safe at startup or admin-endpoint, not on the per-request hot path.
 
 **Phase compatibility.** Diagnose works in both pre-Build and post-Build phases (same as `RuleNames` / `RuleInfos`) and does not trigger implicit Build.
+
+### Build once, deploy many with snapshots
+
+Since `v0.15.0`, `engine/indexed.Engine` ships `ExportSnapshot()` and a matching `LoadSnapshot` constructor. A central build job loads the authoritative source, validates, canonicalizes, and writes a JSON artifact. Consumer processes call `LoadSnapshot` and skip every parse / validate / canonicalize cost — the loaded engine is already `Built()` and ready to `Execute`.
+
+```go
+import (
+    "encoding/json"
+    "os"
+
+    "github.com/helmedeiros/bre-go/engine/indexed"
+)
+
+// build job: load source, export snapshot, write JSON
+func buildSnapshot(srcPath, dstPath string) error {
+    e := indexed.New()
+    // ... AddRule calls from CSV / JSON / your config ...
+
+    snap, err := e.ExportSnapshot()
+    if err != nil {
+        return err
+    }
+    f, err := os.Create(dstPath)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+    return json.NewEncoder(f).Encode(snap)
+}
+```
+
+```go
+// consumer process: read JSON, load, execute
+func loadSnapshot(path string) (*indexed.Engine, error) {
+    f, err := os.Open(path)
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close()
+
+    var snap indexed.Snapshot
+    if err := json.NewDecoder(f).Decode(&snap); err != nil {
+        return nil, err
+    }
+
+    rebuild := map[string]indexed.RuleCallbacks{
+        "br-domestic": {Action: func(input interface{}) interface{} { return "br" }},
+        "eu-set":      {Action: func(input interface{}) interface{} { return "eu" }},
+    }
+    return indexed.LoadSnapshot(&snap, rebuild)
+}
+```
+
+**Action callbacks are out-of-band, by name.** The snapshot carries the match shape and the rule name; the consumer binary supplies the action function via `rebuild[ruleName]`. Rules absent from `rebuild` load callback-less (a legal no-op-on-match shape — useful for engines used purely for matched-name reporting). This is the operational contract: rules live in the artifact, code lives in the binary.
+
+**Hook-bearing engines refuse to export.** If you've called `WithPostFilterHook`, `ExportSnapshot` returns `ErrSnapshotIncompatibleHook`. The custom-condition protocol is separate; v0.15.0 makes snapshot export and custom-condition extension mutually exclusive.
+
+**Format-version policy is strict.** `LoadSnapshot` refuses any `FormatVersion` other than `indexed.SnapshotFormatVersion` (currently `1`) with `ErrSnapshotFormatVersionMismatch`. No migration shims — version skew is loud and immediate. Minor releases may bump the version if the AST gains a new shape; consumers regenerate.
+
+**Range bounds use string-encoded floats.** `Min` and `Max` are decimal strings (`"100"`, `"+Inf"`, `"-Inf"`) so IEEE-754 infinity values survive `encoding/json`, which refuses to marshal non-finite `float64`.
+
+**Diagnose against loaded engines.** A loaded engine is a regular `*indexed.Engine`. Run `loaded.Diagnose()` against it before serving traffic — same defensive validation, this time against the snapshot the consumer actually received. Catches "the artifact disagrees with what I expected" before traffic hits it.
