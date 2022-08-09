@@ -1,0 +1,8 @@
+PASS: E6: format-version mismatch returns ErrSnapshotFormatVersionMismatch (indexed: LoadSnapshot FormatVersion does not match current SnapshotFormatVersion)
+PASS: E6: malformed range min returns ErrSnapshotMalformed (indexed: LoadSnapshot decoded a malformed condition: range min "not-a-float": st...)
+PASS: E6: unknown condition type returns ErrSnapshotMalformed (indexed: LoadSnapshot decoded a malformed condition: unknown type "no-such-type")
+PASS: E6: hand-edited format-version on disk roundtrips into refusal (indexed: LoadSnapshot FormatVersion does not match current SnapshotFormatVersion)
+PASS: E7: hook-bearing pre-Build engine refuses to export (indexed: ExportSnapshot refuses engines with WithPostFilterHook installed)
+PASS: E7: hook-bearing post-Build engine refuses to export (indexed: ExportSnapshot refuses engines with WithPostFilterHook installed)
+PASS: E6: empty-engine export returns ErrSnapshotEmpty (indexed: ExportSnapshot refuses empty engines)
+refusals: 7/7 passed

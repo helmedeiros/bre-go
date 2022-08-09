@@ -1,0 +1,13 @@
+services:
+  harness:
+    build:
+      context: ../..
+      dockerfile: scientific/v0.15.0/Dockerfile
+    image: bre-go-sci-v0.15.0:${ARCH:-native}
+    platform: ${PLATFORM:-linux/arm64}
+    cpus: 1.0
+    mem_limit: 1g
+    volumes:
+      - ./results:/data
+    working_dir: /data
+    entrypoint: ["/bin/bash"]
