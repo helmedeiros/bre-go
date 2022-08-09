@@ -1,0 +1,19 @@
+# Large generated artifacts are reproducible by running the harness.
+# Commit the evidence (timings, reports, logs), not the bulk inputs.
+results/**/rules.csv
+results/**/snapshot.json
+results/**/inputs.jsonl
+results/**/results-source.jsonl
+results/**/results-snapshot.jsonl
+results/**/results-snapshot-*.jsonl
+results/docker-build.*.log
+
+# stray binary outputs from local `go build` runs
+scigen
+sci-*
+adversarial
+build
+load
+compare
+stats
+refusals

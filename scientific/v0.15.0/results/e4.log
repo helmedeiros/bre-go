@@ -1,0 +1,6 @@
+scigen: wrote 100000 rules + 1000 inputs to /data/e4 (seed=11)
+source-build: trials=1 mean=257.384583ms min=257.384583ms max=257.384583ms
+build: wrote 1000 results to results-source.jsonl
+snapshot-load: trials=1 mean=359.772167ms min=359.772167ms max=359.772167ms
+load: wrote 1000 results to results-snapshot.jsonl
+compare: 1000 rows match byte-for-byte

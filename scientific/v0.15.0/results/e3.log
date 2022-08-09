@@ -1,0 +1,4 @@
+scigen: wrote 10000 rules + 100 inputs to /data/e3a (seed=99)
+source-build: trials=1 mean=16.313708ms min=16.313708ms max=16.313708ms
+scigen: wrote 10000 rules + 100 inputs to /data/e3b (seed=99)
+source-build: trials=1 mean=15.778083ms min=15.778083ms max=15.778083ms

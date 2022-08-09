@@ -1,0 +1,5 @@
+source-build: trials=1 mean=35.106667ms min=35.106667ms max=35.106667ms
+build: wrote 10000 results to results-source.jsonl
+snapshot-load: trials=1 mean=27.074083ms min=27.074083ms max=27.074083ms
+load: wrote 10000 results to results-snapshot.jsonl
+compare: 10000 rows match byte-for-byte

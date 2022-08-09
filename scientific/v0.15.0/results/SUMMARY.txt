@@ -1,0 +1,31 @@
+
+=== BUILD: harness images ===
+images ok
+
+=== E1: cross-arch behavioral equivalence (10k rules x 10k inputs) ===
+E1: PASS (arm64->amd64 and amd64->arm64 both byte-identical)
+
+=== E2: load-time speedup (n=50 trials, native arm64, 10000 rules) ===
+source-build       n=50 mean=25.752ms median=15.320ms p99=61.440ms stddev=18.231ms min=12.858ms max=62.784ms
+snapshot-load      n=50 mean=38.910ms median=31.156ms p99=62.060ms stddev=12.861ms min=24.535ms max=63.005ms
+speedup (source-build / snapshot-load): median=0.49x mean=0.66x
+verdict: FAIL (median 0.49x < 3.00x)
+E2: FAIL (pre-registered 3.0 x bar not met)
+
+=== E3: snapshot determinism (two independent builds, same seed) ===
+E3: PASS (snapshots byte-identical across independent builds)
+
+=== E4: scale to 100000 rules ===
+E4: PASS (100000 rules, 1000 inputs round-trip identical)
+E4 artifacts: snapshot.json size  16625922 bytes; rules.csv size  6416996 bytes
+
+=== E5: adversarial round-trip ===
+E5: PASS (every adversarial case round-trips identically)
+adversarial: cases=11 checks=28 failures=0
+
+=== E6 + E7: refusal-path verification ===
+E6+E7: PASS
+refusals: 7/7 passed
+
+=== FINAL VERDICT ===
+1 experiment(s) failed pre-registered bars -- do not move bars; revise claims
