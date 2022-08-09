@@ -8,12 +8,20 @@ results/**/results-snapshot.jsonl
 results/**/results-snapshot-*.jsonl
 results/docker-build.*.log
 
-# stray binary outputs from local `go build` runs
-scigen
-sci-*
-adversarial
-build
-load
-compare
-stats
-refusals
+# Anchored to the suite root: stray `go build` outputs produced by
+# running `go build ./cmd/...` here. These names also exist as
+# cmd/ subdirectories; un-anchored patterns would ignore the
+# subdirectories themselves and silently drop their source files.
+/scigen
+/sci-build
+/sci-load
+/sci-compare
+/sci-stats
+/sci-adv
+/sci-refusals
+/build
+/load
+/compare
+/stats
+/adversarial
+/refusals

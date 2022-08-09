@@ -935,7 +935,9 @@ if err := validate(e); err != nil {
 
 ### Build once, deploy many with snapshots
 
-Since `v0.15.0`, `engine/indexed.Engine` ships `ExportSnapshot()` and a matching `LoadSnapshot` constructor. A central build job loads the authoritative source, validates, canonicalizes, and writes a JSON artifact. Consumer processes call `LoadSnapshot` and skip every parse / validate / canonicalize cost — the loaded engine is already `Built()` and ready to `Execute`.
+Since `v0.15.0`, `engine/indexed.Engine` ships `ExportSnapshot()` and a matching `LoadSnapshot` constructor. A central build job loads the authoritative source and writes a JSON artifact; consumer processes call `LoadSnapshot` to obtain an already-`Built()` engine. The snapshot is content-addressable (two independent builds from the same source produce byte-identical bytes — checksum it, cache it, deduplicate it) and portable across CPU architectures.
+
+> **Not a startup-time optimization vs. a simple CSV + parser baseline.** At 10k rules the snapshot load path is roughly 2× slower than CSV + `parser.ParseToCondition` because the tagged-union JSON costs more to decode than the parser costs to run. The full measurement is in [`scientific/v0.15.0/REPORT.md`](../scientific/v0.15.0/REPORT.md). Reach for snapshots when you want a diffable artifact, a content-addressable cache key, or an analysis target for offline `Diagnose` — not when you want a faster cold start than the parser already provides.
 
 ```go
 import (

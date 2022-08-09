@@ -315,15 +315,33 @@ A new "Build-once, deploy-many with snapshots" entry:
 
 ### Closed by v0.15.0
 
-- Build-once, deploy-many: a build process produces a single
-  snapshot artifact; consumer processes load it and skip every
-  parse / validate / canonicalize cost.
-- Operationally-diffable compiled state: two consumers on
+- **Content-addressable build artifact.** Two independent build
+  processes producing the same rule set produce byte-identical
+  snapshot files. Hashable, cacheable, deduplicable. Validated by
+  `scientific/v0.15.0` E3.
+- **Cross-architecture portability.** A snapshot built on arm64
+  loads on amd64 (and vice versa) with byte-identical match
+  results across 10k inputs in both directions. Validated by E1.
+- **Operationally-diffable compiled state.** Two consumers on
   different machines can diff their snapshot files directly to
   reason about behavioral divergence.
-- Offline Diagnose: a snapshot loaded into a dev tool can be
+- **Offline Diagnose.** A snapshot loaded into a dev tool can be
   Diagnose'd against the same rules production runs without
   attaching to a live engine.
+- **Refusal-path integrity.** Hook-bearing engines, tampered
+  format versions, malformed `Min`/`Max`, and unknown condition
+  types all surface their declared error sentinels. Validated by
+  E6 + E7 (7/7 declared paths).
+
+### NOT closed by v0.15.0
+
+- **Load-time speedup vs. CSV + the bre-go parser.** The intuitive
+  "skip the parse cost" framing does not hold at typical scales:
+  the JSON-decode cost of the tagged-union format exceeds the
+  parser cost saved. Measured median speedup 0.49× at 10k rules
+  (E2 fails the pre-registered 3.0× bar). The bar stays on the
+  books; a future binary-format ADR is the right hammer if a real
+  consumer needs to close this gap.
 
 ### Still open after v0.15.0
 
@@ -343,17 +361,25 @@ A new "Build-once, deploy-many with snapshots" entry:
   this feature. A future ADR could add a typed-rule constructor
   to them as a precursor.
 
-### Performance impact
+### Performance impact (measured, see `scientific/v0.15.0/REPORT.md`)
 
-- ExportSnapshot is O(N × depth-of-Match). For a 10k-rule, depth-3
-  engine: ~30k tree-node visits, single-millisecond total. Run at
-  build time, not request time.
+- ExportSnapshot is O(N × depth-of-Match). Single-millisecond for
+  10k rules of depth 2–3. Run at build time, not request time.
 - LoadSnapshot is O(N × AddRule-cost). Each rule replays the
   AddRule path (shape extraction + canonicalization + bucket
-  insertion). Same per-rule cost as constructing the engine
-  imperatively, minus the source-parse cost. The win is
-  proportional to the parse + validate cost of the original
-  source format.
+  insertion). The cost the snapshot path saves is the source-side
+  parse cost.
+- **Empirical finding (v0.15.0 release window):** for bre-go's own
+  parser at 10k rules with typical equality / set / negation
+  conditions, the saved parse cost is *less* than the cost of
+  decoding the verbose tagged-union JSON. Median speedup vs.
+  CSV + `parser.ParseToCondition`: 0.49× (snapshot is ~2× slower).
+  See `scientific/v0.15.0/REPORT.md` §E2 for the full distribution.
+- A future ADR can introduce a compact binary snapshot format if a
+  real consumer arrives with a load-time requirement the JSON
+  format does not meet. Until that consumer exists, the JSON
+  format wins on the dimensions that do pass: portability,
+  diffability, content-addressable determinism.
 - Per-Execute hot path is unchanged. Snapshot is build-time
   machinery; loaded engines Execute identically to imperatively-
   built ones.

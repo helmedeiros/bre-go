@@ -13,7 +13,7 @@ _Nothing yet. New entries land here._
 
 ## [0.15.0] - 2022-08-05
 
-Fifteenth minor release. Adds `engine/indexed.Engine.ExportSnapshot()` and `engine/indexed.LoadSnapshot()` -- a JSON-serializable snapshot of an indexed engine's rule set, plus a matching loader that produces an already-Built engine ready to Execute. Build-once / deploy-many lifecycle for the indexed adapter. Additive (no breaking changes from v0.14.x).
+Fifteenth minor release. Adds `engine/indexed.Engine.ExportSnapshot()` and `engine/indexed.LoadSnapshot()` -- a JSON-serializable snapshot of an indexed engine's rule set, plus a matching loader that produces an already-Built engine ready to Execute. The snapshot is content-addressable (byte-identical across independent builds), portable across CPU architectures (arm64 ↔ amd64 verified), and tolerant of adversarial round-trip. **It is not a load-time optimization**: at 10k rules the measured median speedup vs. CSV + `parser.ParseToCondition` is 0.49× (snapshot is *slower*). The pre-registered scientific validation in [`scientific/v0.15.0/REPORT.md`](scientific/v0.15.0/REPORT.md) documents this and the dimensions that did pass. Additive (no breaking changes from v0.14.x).
 
 ### Added
 
