@@ -1,0 +1,4 @@
+build-c1: wrote snapshot.c1.json (10000 rules)
+load-c1: trials=50 mean=39.90734ms min=25.802792ms max=64.383208ms
+build-c1: wrote snapshot.c1.json (100000 rules)
+load-c1-100k: trials=20 mean=463.802087ms min=378.723166ms max=507.397542ms

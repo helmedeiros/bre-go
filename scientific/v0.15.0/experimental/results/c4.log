@@ -1,0 +1,4 @@
+build-c4: wrote snapshot.c4.bin (10000 rules)
+load-c4: trials=50 mean=15.14989ms min=8.597458ms max=50.904ms
+build-c4: wrote snapshot.c4.bin (100000 rules)
+load-c4-100k: trials=20 mean=198.725252ms min=132.113084ms max=282.738125ms

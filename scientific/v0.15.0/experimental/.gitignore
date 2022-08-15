@@ -1,0 +1,29 @@
+# Large generated artifacts are reproducible by re-running.
+results/d10k/rules.csv
+results/d10k/inputs.jsonl
+results/d10k/snapshot.json
+results/d10k/snapshot.c1.json
+results/d10k/snapshot.c3.bin
+results/d10k/snapshot.c4.bin
+results/d10k/snapshot.c5.bin
+results/d10k/results-*.jsonl
+results/d100k/rules.csv
+results/d100k/inputs.jsonl
+results/d100k/snapshot.json
+results/d100k/snapshot.c1.json
+results/d100k/snapshot.c3.bin
+results/d100k/snapshot.c4.bin
+results/d100k/snapshot.c5.bin
+results/d100k/results-*.jsonl
+results/cross-*
+results/docker-build.*.log
+
+# Anchored to suite root: stray binary outputs from `go build`.
+/sci-build-c1
+/sci-load-c1
+/sci-build-c3
+/sci-load-c3
+/sci-build-c4
+/sci-load-c4
+/sci-build-c5
+/sci-load-c5
