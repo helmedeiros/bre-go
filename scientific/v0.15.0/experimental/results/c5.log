@@ -1,0 +1,4 @@
+build-c5: wrote snapshot.c5.bin (10000 rules, 2 buckets)
+load-c5: trials=50 mean=11.25415ms min=7.028625ms max=39.152542ms
+build-c5: wrote snapshot.c5.bin (100000 rules, 2 buckets)
+load-c5-100k: trials=20 mean=116.179081ms min=87.970667ms max=176.37725ms

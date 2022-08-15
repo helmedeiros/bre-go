@@ -1,0 +1,4 @@
+build-c3: wrote snapshot.c3.bin (10000 rules)
+load-c3: trials=50 mean=19.332219ms min=11.057042ms max=50.509041ms
+build-c3: wrote snapshot.c3.bin (100000 rules)
+load-c3-100k: trials=20 mean=251.881554ms min=162.571542ms max=310.939708ms

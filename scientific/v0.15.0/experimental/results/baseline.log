@@ -1,0 +1,6 @@
+source-build: trials=50 mean=23.906795ms min=13.241334ms max=62.983084ms
+source-build: trials=1 mean=13.248958ms min=13.248958ms max=13.248958ms
+build: wrote 10000 results to results-source.jsonl
+source-build-100k: trials=20 mean=333.3255ms min=263.097ms max=405.598375ms
+source-build: trials=1 mean=254.205042ms min=254.205042ms max=254.205042ms
+build: wrote 1000 results to results-source.jsonl

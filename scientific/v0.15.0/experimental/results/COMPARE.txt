@@ -1,0 +1,49 @@
+
+=== BUILD: experimental harness images ===
+images ok
+
+=== GENERATE: 10k rules + 10k inputs (seed 7), 100k rules + 1k inputs (seed 11) ===
+
+=== BASELINE source-build (10k, n=50) ===
+source-build 10k median: 15313374 ns
+
+=== BASELINE source-build (100k, n=20) ===
+source-build 100k median: 316982042 ns
+
+=== CANDIDATE c1 (10k) ===
+c1 10k median: 30466520 ns; correctness: ok
+
+=== CANDIDATE c1 (100k) ===
+c1 100k median: 481807291 ns; correctness: ok
+
+=== CANDIDATE c3 (10k) ===
+c3 10k median: 13829125 ns; correctness: ok
+
+=== CANDIDATE c3 (100k) ===
+c3 100k median: 268782729 ns; correctness: ok
+
+=== CANDIDATE c4 (10k) ===
+c4 10k median: 10559542 ns; correctness: ok
+
+=== CANDIDATE c4 (100k) ===
+c4 100k median: 199791437 ns; correctness: ok
+
+=== CANDIDATE c5 (10k) ===
+c5 10k median: 8297271 ns; correctness: ok
+
+=== CANDIDATE c5 (100k) ===
+c5 100k median: 108423208 ns; correctness: ok
+
+=== EVALUATE pre-registered bars ===
+B1: speed bar = 5.0 ms (5000000 ns)
+B2: scale ratio bar = 0.80 (throughput@100k / throughput@10k >= bar)
+
+cand | 10k_median   | 100k_median  | scale_ok   | speed_ok   | verdict
+---- | ------------ | ------------ | ---------- | ---------- | ------
+c1   | 30.467ms     | 481.807ms    | FAIL (0.632) | FAIL       | FAIL
+c3   | 13.829ms     | 268.783ms    | FAIL (0.515) | FAIL       | FAIL
+c4   | 10.560ms     | 199.791ms    | FAIL (0.529) | FAIL       | FAIL
+c5   | 8.297ms      | 108.423ms    | FAIL (0.765) | FAIL       | FAIL
+
+=== FINAL VERDICT ===
+no candidate cleared all pre-registered bars
