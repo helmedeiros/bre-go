@@ -86,6 +86,17 @@ var ErrSnapshotFormatVersionMismatch = errors.New("indexed: LoadSnapshot FormatV
 // missing required field for its type tag).
 var ErrSnapshotMalformed = errors.New("indexed: LoadSnapshot decoded a malformed condition")
 
+// ErrCompiledSnapshotFormatVersionMismatch is returned by
+// UnmarshalCompiledSnapshot when the on-disk format version does not
+// equal CompiledSnapshotFormatVersion. Refuse-on-mismatch is the
+// v0.16.0 contract; no migration shims.
+var ErrCompiledSnapshotFormatVersionMismatch = errors.New("indexed: UnmarshalCompiledSnapshot format version does not match current CompiledSnapshotFormatVersion")
+
+// ErrCompiledSnapshotMalformed is returned by UnmarshalCompiledSnapshot
+// when the byte stream cannot be decoded (bad magic, truncated input,
+// unknown condition tag, unknown op tag).
+var ErrCompiledSnapshotMalformed = errors.New("indexed: UnmarshalCompiledSnapshot decoded a malformed byte stream")
+
 // ActionPanicError is returned by Execute when a rule's Action panicked.
 // The adapter recovered the panic; the matched rule name is in
 // Result.Matched, but its Action did not complete.

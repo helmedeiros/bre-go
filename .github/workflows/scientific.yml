@@ -1,11 +1,23 @@
 name: scientific
 
-# Runs the pre-registered scientific validation suite for snapshot
-# releases. Tag-triggered (so every release that touches the snapshot
-# format gets a clean signal) plus workflow_dispatch (so the suite can
-# be invoked ad-hoc for investigation).
+# Runs the pre-registered scientific validation suite for a release
+# whose `scientific/<release>/` directory provides a runnable entry
+# point. Tag-triggered (so every release that touches the snapshot
+# format gets a clean signal) plus workflow_dispatch (so the suite
+# can be invoked ad-hoc for investigation).
 #
-# Pre-registered bars are encoded in scientific/v0.15.0/scripts/run-all.sh.
+# A release is considered to have a harness if it provides either:
+#   scientific/<release>/scripts/run-all.sh   -- the v0.15.0 model
+#                                                (Docker-multi-arch
+#                                                 perf harness)
+#   scientific/<release>/scripts/run.sh       -- the v0.17.0+ model
+#                                                (simple wrapper
+#                                                 around an in-process
+#                                                 Go harness)
+# When neither exists the workflow exits 0 without running anything;
+# tagging a release that doesn't ship a harness is not an error.
+#
+# Pre-registered bars are encoded in the harness scripts themselves.
 # Do not loosen them to make CI green; if a bar misses, fix the cause
 # or revise the claim that promised it.
 
@@ -46,30 +58,49 @@ jobs:
             echo "trials=50"    >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify suite exists for this release
+      - name: Detect harness
+        id: detect
         run: |
           dir="scientific/${{ steps.rel.outputs.release }}"
-          if [ ! -d "$dir" ] || [ ! -x "$dir/scripts/run-all.sh" ]; then
-            echo "no scientific suite at $dir/scripts/run-all.sh -- skipping"
-            exit 78  # neutral
+          if [ -x "$dir/scripts/run-all.sh" ]; then
+            echo "harness=run-all.sh" >> "$GITHUB_OUTPUT"
+            echo "needs_docker=true" >> "$GITHUB_OUTPUT"
+            echo "found harness: $dir/scripts/run-all.sh"
+          elif [ -x "$dir/scripts/run.sh" ]; then
+            echo "harness=run.sh" >> "$GITHUB_OUTPUT"
+            echo "needs_docker=false" >> "$GITHUB_OUTPUT"
+            echo "found harness: $dir/scripts/run.sh"
+          else
+            echo "harness=none" >> "$GITHUB_OUTPUT"
+            echo "needs_docker=false" >> "$GITHUB_OUTPUT"
+            echo "no scientific harness under $dir/scripts/ -- skipping"
           fi
 
+      - name: Set up Go
+        if: steps.detect.outputs.harness != 'none'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: Set up Docker Buildx (multi-arch)
+        if: steps.detect.outputs.needs_docker == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Set up QEMU
+        if: steps.detect.outputs.needs_docker == 'true'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64,amd64
 
       - name: Run scientific suite
+        if: steps.detect.outputs.harness != 'none'
         env:
           TRIALS_E2: ${{ steps.rel.outputs.trials }}
         run: |
-          bash scientific/${{ steps.rel.outputs.release }}/scripts/run-all.sh
+          bash scientific/${{ steps.rel.outputs.release }}/scripts/${{ steps.detect.outputs.harness }}
 
       - name: Upload raw results
-        if: always()
+        if: steps.detect.outputs.harness != 'none' && always()
         uses: actions/upload-artifact@v4
         with:
           name: scientific-${{ steps.rel.outputs.release }}-${{ github.run_id }}
