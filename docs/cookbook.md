@@ -26,6 +26,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Wire structured telemetry on any engine](#wire-structured-telemetry-on-any-engine)
   - [Validate your rule set with Diagnose](#validate-your-rule-set-with-diagnose)
   - [Build once, deploy many with snapshots](#build-once-deploy-many-with-snapshots)
+  - [Use the binary snapshot format](#use-the-binary-snapshot-format)
 
 ## Patterns
 
@@ -996,3 +997,78 @@ func loadSnapshot(path string) (*indexed.Engine, error) {
 **Range bounds use string-encoded floats.** `Min` and `Max` are decimal strings (`"100"`, `"+Inf"`, `"-Inf"`) so IEEE-754 infinity values survive `encoding/json`, which refuses to marshal non-finite `float64`.
 
 **Diagnose against loaded engines.** A loaded engine is a regular `*indexed.Engine`. Run `loaded.Diagnose()` against it before serving traffic — same defensive validation, this time against the snapshot the consumer actually received. Catches "the artifact disagrees with what I expected" before traffic hits it.
+
+### Use the binary snapshot format
+
+Since `v0.16.0`, `engine/indexed` ships a second snapshot path optimized for load time at scale. The v0.15.0 JSON path stays available and is the right choice when cross-language consumption or human-readability matters. The v0.16.0 binary path is the right choice when load time matters.
+
+The contract is the same — engine state in, engine state out — but the wire format encodes the *already-bucketed* state, so the loader skips `AddRule` and `Build` entirely.
+
+```go
+import (
+    "os"
+
+    "github.com/helmedeiros/bre-go/engine/indexed"
+)
+
+// build job: export + marshal in two steps so the file can be
+// content-addressable (hash the bytes if needed for caching).
+func buildBinarySnapshot(e *indexed.Engine, dstPath string) error {
+    cs, err := e.ExportCompiledSnapshot()
+    if err != nil {
+        return err
+    }
+    f, err := os.Create(dstPath)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+    return indexed.MarshalCompiledSnapshot(f, cs)
+}
+```
+
+```go
+// consumer process: unmarshal + Load. Returns a Built engine ready
+// to Execute.
+func loadBinarySnapshot(srcPath string) (*indexed.Engine, error) {
+    f, err := os.Open(srcPath)
+    if err != nil {
+        return nil, err
+    }
+    defer f.Close()
+    cs, err := indexed.UnmarshalCompiledSnapshot(f)
+    if err != nil {
+        return nil, err
+    }
+    rebuild := map[string]indexed.RuleCallbacks{
+        "br-domestic": {Action: func(input interface{}) interface{} { return "br" }},
+    }
+    return indexed.LoadCompiledSnapshot(cs, rebuild)
+}
+```
+
+**Performance.** Measured under the same Docker-mediated, single-CPU constraints as the v0.15.0 baseline:
+
+| Rule count | v0.15.0 JSON | v0.16.0 binary | Speedup vs `parser.ParseToCondition` source-build |
+|---|---|---|---|
+| 10 000 | 31.156 ms | **8.297 ms** | **1.85×** |
+| 100 000 | (not separately measured) | **108.423 ms** | **2.93×** |
+
+Per-rule scaling ratio: 0.765 (the per-rule cost grows ~30% from 10k to 100k). The source-build baseline scales 0.483 (per-rule cost grows ~210%). Full distribution and methodology in [`scientific/v0.15.0/experimental/REPORT.md`](../scientific/v0.15.0/experimental/REPORT.md).
+
+**Format-version policy.** Strict equality. `UnmarshalCompiledSnapshot` refuses any `formatVersion` other than `indexed.CompiledSnapshotFormatVersion` (`= 1` in v0.16.0) with `ErrCompiledSnapshotFormatVersionMismatch`. No migration shims; consumers regenerate from source when the format bumps.
+
+**Cross-arch.** The wire format is big-endian throughout, with strings length-prefixed and float bounds encoded as decimal strings (so IEEE-754 infinity survives). Tests verify byte-identical match results when a snapshot built on arm64 is loaded on amd64 (and vice versa).
+
+**Hook restriction (same as v0.15.0 JSON).** Engines that called `WithPostFilterHook` cannot export with either format; both return `ErrSnapshotIncompatibleHook`. The custom-condition protocol is its own ADR.
+
+**Choosing between the two formats.** v0.15.0 JSON wins when you need:
+- A text artifact you can `git diff` or grep,
+- Cross-language readers (a Java/Python validator before deploying),
+- Pure determinism + portability without a load-time SLA.
+
+v0.16.0 binary wins when you need:
+- The fastest load time bre-go currently offers,
+- Smaller files at scale (50% smaller at 10k rules).
+
+Both round-trip identically. You can ship one of each from the same build job and choose at the consumer.

@@ -11,6 +11,55 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.16.0] - 2022-08-22
+
+Sixteenth minor release. Adds the binary "compiled snapshot" path for `engine/indexed`: a content-addressable, cross-architecture-portable, pre-bucketed format that skips `AddRule` and `Build` at load time. Validated by the scientific harness committed in v0.15.0/experimental: **1.85× faster than CSV + `parser.ParseToCondition` at 10 000 rules, 2.93× faster at 100 000 rules**, with a per-rule scaling ratio (0.765) dramatically better than the source path's (0.483). v0.15.0's JSON snapshot format stays available; ADR-0041 documents the rationale and the honest performance curve. Additive (no breaking changes from v0.15.x).
+
+### Added
+
+- `engine/indexed.CompiledSnapshotFormatVersion` (`uint16 = 1`) constant. `UnmarshalCompiledSnapshot` refuses any other value with `ErrCompiledSnapshotFormatVersionMismatch` — strict policy, no migration shims.
+- `engine/indexed.CompiledSnapshot{KeysetOrder, Buckets, RulesInOrder}` -- in-memory shape of the fully-bucketed engine state. The pre-built form `LoadCompiledSnapshot` atomic-stores directly.
+- `engine/indexed.CompiledBucket{Fields, ByValueKey}` and `CompiledRuleRef{Name, PostFilter}` -- per-keyset and per-value-key entries.
+- `engine/indexed.FieldValueSet{Field, Values}` and `engine/indexed.PreClassifiedRule{Name, Description, Tags, Sets, PostFilter, Action, ActionContext}` -- intermediate pre-classified form for callers who have already split match into bucket-key + post-filter terms.
+- `engine/indexed.Engine.ExportCompiledSnapshot() (*CompiledSnapshot, error)` -- emits the engine's compiled state. Triggers implicit Build. Refuses hook-bearing engines (`ErrSnapshotIncompatibleHook`).
+- `engine/indexed.LoadCompiledSnapshot(*CompiledSnapshot, map[string]RuleCallbacks) (*Engine, error)` -- returns a Built engine ready to Execute. No AddRule, no Build. Callbacks attach by rule name via the same rebuild map as v0.15.0.
+- `engine/indexed.Engine.ExportPreClassifiedRules() ([]PreClassifiedRule, error)` and `engine/indexed.Engine.AddPreClassifiedRule(r PreClassifiedRule) error` -- intermediate path that skips the parser.Condition walk but still runs cartesian fan-out + bucket insertion. Useful for callers loading rules from a pre-processed source.
+- `engine/indexed.MarshalCompiledSnapshot(io.Writer, *CompiledSnapshot) error` -- v0.16.0 binary wire format. Big-endian throughout for cross-arch portability, length-prefixed strings, varint counts, single-byte condition + op tags, floats as decimal strings (so IEEE-754 infinity bounds survive). 4-byte magic `"BRG5"` + uint16 version header.
+- `engine/indexed.UnmarshalCompiledSnapshot(io.Reader) (*CompiledSnapshot, error)` -- reads the binary form. Returns `ErrCompiledSnapshotFormatVersionMismatch` on version skew or `ErrCompiledSnapshotMalformed` on truncated / unknown-tag input.
+- New error sentinels: `ErrCompiledSnapshotFormatVersionMismatch`, `ErrCompiledSnapshotMalformed`.
+
+### Performance (measured, n=50 trials at 10k, n=20 at 100k, see `scientific/v0.15.0/experimental/REPORT.md`)
+
+- **10 000 rules:** median load time **8.297 ms** (vs source-build 15.313 ms — **1.85× faster**, vs v0.15.0 JSON snapshot 31.156 ms — **3.75× faster**).
+- **100 000 rules:** median load time **108.423 ms** (vs source-build 316.982 ms — **2.93× faster**).
+- **Per-rule scaling:** 0.765 (source-build: 0.483). C5's per-rule cost grows ~30% from 10k to 100k; source-build's grows ~210%.
+- **File size at 10k:** 0.83 MB (vs v0.15.0 JSON 1.66 MB, 50% smaller).
+- **Cross-arch (arm64 ↔ amd64):** byte-identical match results across 10 000 inputs in both directions.
+
+### Honest framing
+
+This release does not promise "build once, deploy 100× faster." The measured speedup curve is:
+
+| Rule count | Compiled-snapshot speedup vs CSV + `parser.ParseToCondition` |
+|---|---|
+| 10 000 | ~1.85× |
+| 100 000 | ~2.93× |
+
+Meaningfully faster than v0.15.0 JSON at every scale measured; meaningfully faster than the source-build baseline at scale. The pre-registered 3.0×-at-10k bar from `scientific/v0.15.0/experimental/` was missed; the bar stays on the books, and the v0.16.0 docs report what was measured rather than what was hoped for.
+
+### Documentation
+
+- README banner bumped to v0.16.0; Stability section adds the compiled-snapshot bullet with the realistic perf curve.
+- Cookbook gains a "Use the binary snapshot format" entry next to the v0.15.0 JSON entry, with the canonical Marshal/Unmarshal pattern and a guide for when to prefer each.
+- ADR-0041 status: Proposed → Accepted (v0.16.0).
+
+### Testing
+
+- 22 new tests in `engine/indexed/compiled_wire_test.go` covering round-trip for every condition shape (string, set with IN/NOT IN, range with finite + ±Inf bounds, deep AndCondition trees, all four ops in a single rule), Description + Tags preservation, callback attach by name, format-version mismatch refusal, bad-magic refusal, truncated-input refusal at every byte offset, unknown condition tag refusal.
+- Round-trip equivalence is exhaustive at byte level: every cutoff `n` in `[0, marshal_size)` produces an error from `UnmarshalCompiledSnapshot`; every short-write cutoff produces an error from `MarshalCompiledSnapshot`.
+
+ADR-0041 Accepted. 41 ADRs on `main`, 96% total coverage maintained (compiled wire format's I/O-error defensive returns account for the per-package drop on `engine/indexed`).
+
 ## [0.15.0] - 2022-08-05
 
 Fifteenth minor release. Adds `engine/indexed.Engine.ExportSnapshot()` and `engine/indexed.LoadSnapshot()` -- a JSON-serializable snapshot of an indexed engine's rule set, plus a matching loader that produces an already-Built engine ready to Execute. The snapshot is content-addressable (byte-identical across independent builds), portable across CPU architectures (arm64 ↔ amd64 verified), and tolerant of adversarial round-trip. **It is not a load-time optimization**: at 10k rules the measured median speedup vs. CSV + `parser.ParseToCondition` is 0.49× (snapshot is *slower*). The pre-registered scientific validation in [`scientific/v0.15.0/REPORT.md`](scientific/v0.15.0/REPORT.md) documents this and the dimensions that did pass. Additive (no breaking changes from v0.14.x).

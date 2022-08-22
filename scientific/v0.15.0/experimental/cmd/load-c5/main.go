@@ -75,7 +75,7 @@ func loadOnce(path string) (*indexed.Engine, error) {
 		return nil, err
 	}
 	defer f.Close()
-	cs, err := format.DecodeC5(f)
+	cs, err := indexed.UnmarshalCompiledSnapshot(f)
 	if err != nil {
 		return nil, err
 	}
