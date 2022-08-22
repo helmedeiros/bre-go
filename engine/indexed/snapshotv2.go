@@ -9,28 +9,23 @@ import (
 	"github.com/helmedeiros/bre-go/engine/parser"
 )
 
-// Snapshot v2 -- EXPERIMENTAL.
+// Snapshot v2 -- the v0.16.0 binary path documented in ADR-0041.
 //
-// Two intermediate forms surfaced for the post-v0.15.0 performance
-// exploration documented in scientific/v0.15.0/experimental/REPORT.md.
+// Two intermediate forms, both validated by the harness in
+// scientific/v0.15.0/experimental/ before promotion.
 //
 //   FieldValueSet + PreClassifiedRule + AddPreClassifiedRule:
 //     skips the parser.Condition walk and validation that AddRule
 //     performs. Caller has already split the match into bucket-key
-//     contributors and post-filter terms; the engine just runs
-//     cartesian fan-out and bucket insertion. Useful for callers
-//     loading rules from a pre-processed source.
+//     contributors and post-filter terms; the engine runs cartesian
+//     fan-out and bucket insertion only.
 //
 //   CompiledSnapshot + ExportCompiledSnapshot + LoadCompiledSnapshot:
 //     skips AddRule entirely. The caller hands over an already-bucketed
 //     state and the engine atomic-stores it as its sealed snapshot.
-//     No fan-out, no insertion, no Build. The only cost is the
-//     allocations needed to copy maps into engine-owned forms.
-//
-// Both APIs are public but UNSTABLE -- they exist so the experimental
-// harness can measure them. If a future ADR promotes them, the names
-// and shapes may change. Callers depending on these today must be
-// prepared to track v0.16.0 changes.
+//     No fan-out, no insertion, no Build. Pair with
+//     MarshalCompiledSnapshot / UnmarshalCompiledSnapshot for the
+//     v0.16.0 binary wire format.
 
 // FieldValueSet is a single bucket-key contributor: one field, the
 // canonicalized set of values that admit it. v0.16.0 candidate API.
