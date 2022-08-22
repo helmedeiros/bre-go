@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		die(err)
 	}
-	if err := format.EncodeC5(f, cs); err != nil {
+	if err := indexed.MarshalCompiledSnapshot(f, cs); err != nil {
 		_ = f.Close()
 		die(err)
 	}

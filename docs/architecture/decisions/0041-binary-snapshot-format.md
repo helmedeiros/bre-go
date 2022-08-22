@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — target v0.16.0. Adds `Engine.ExportCompiledSnapshot()` and `LoadCompiledSnapshot()` as the default snapshot path; v0.15.0's JSON format stays available for the cross-language and human-readable use cases. The new format encodes the engine's already-bucketed compiled state, so the loader skips `AddRule` and `Build` entirely. Empirically validated in [`scientific/v0.15.0/experimental/REPORT.md`](../../../scientific/v0.15.0/experimental/REPORT.md): 1.85× faster than `parser.ParseToCondition`-based source-build at 10 000 rules, **2.93× faster at 100 000 rules**, scaling 0.765 (per-rule cost grows ~30% from 10k to 100k vs source-build's ~210%). The pre-registered 3.0× bar at 10k was *not* cleared; the documentation here calibrates the claim to the measured numbers.
+Accepted — landed in v0.16.0. Adds `Engine.ExportCompiledSnapshot()` + `LoadCompiledSnapshot()` (Go-level types) and `MarshalCompiledSnapshot()` + `UnmarshalCompiledSnapshot()` (binary wire format) as the recommended snapshot path; v0.15.0's JSON format stays available for cross-language and human-readable use cases. The new format encodes the engine's already-bucketed compiled state, so the loader skips `AddRule` and `Build` entirely. Empirically validated in [`scientific/v0.15.0/experimental/REPORT.md`](../../../scientific/v0.15.0/experimental/REPORT.md): **1.85× faster than `parser.ParseToCondition`-based source-build at 10 000 rules, 2.93× faster at 100 000 rules**, scaling 0.765 (per-rule cost grows ~30% from 10k to 100k vs source-build's ~210%). The pre-registered 3.0× bar at 10k was *not* cleared; the documentation calibrates the claim to the measured numbers.
 
 ## Context
 
