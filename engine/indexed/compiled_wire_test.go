@@ -1,10 +1,12 @@
 package indexed_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -305,6 +307,45 @@ func (w *errAfterNBytesWriter) Write(p []byte) (int, error) {
 
 var errInjected = errors.New("injected I/O failure")
 
+func TestCompiledWireMarshalSurfacesWriteErrorsAtEveryOffsetUnbuffered(t *testing.T) {
+	orig := indexed.New()
+	_ = orig.AddRule(indexed.Rule{
+		Name:        "br",
+		Description: "brazilian",
+		Tags:        []string{"geo", "country"},
+		Match: parser.AndCondition{Children: []parser.Condition{
+			parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+			parser.StringCondition{Field: "channel", Op: parser.OpNeq, Value: "store"},
+			parser.SetCondition{Field: "tier", Op: parser.OpNotIn, Values: []string{"corp", "fraud"}},
+			parser.RangeCondition{Field: "amount", Min: 100, Max: math.Inf(+1)},
+		}},
+	})
+	cs, err := orig.ExportCompiledSnapshot()
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	var goodBuf bytes.Buffer
+	if err := indexed.MarshalCompiledSnapshot(&goodBuf, cs); err != nil {
+		t.Fatalf("Marshal (control): %v", err)
+	}
+	total := goodBuf.Len()
+	for cutoff := 0; cutoff < total; cutoff++ {
+		// Pass a *bufio.Writer with buffer size 1 so every byte that
+		// Marshal emits flushes immediately to the underlying writer.
+		// Marshal detects pre-buffered writers and reuses our 1-byte
+		// buffer, so its mid-stream `if err != nil { return err }`
+		// branches all fire when the underlying writer errors.
+		w := bufio.NewWriterSize(&errAfterNBytesWriter{remaining: cutoff}, 1)
+		// Marshal returns nil for pre-buffered writers (caller owns
+		// Flush), so check both Marshal and Flush errors.
+		mErr := indexed.MarshalCompiledSnapshot(w, cs)
+		fErr := w.Flush()
+		if mErr == nil && fErr == nil {
+			t.Fatalf("cutoff=%d: Marshal+Flush returned nil but underlying writer failed", cutoff)
+		}
+	}
+}
+
 func TestCompiledWireMarshalSurfacesWriteErrorsAtEveryOffset(t *testing.T) {
 	orig := indexed.New()
 	_ = orig.AddRule(indexed.Rule{
@@ -313,6 +354,7 @@ func TestCompiledWireMarshalSurfacesWriteErrorsAtEveryOffset(t *testing.T) {
 		Tags:        []string{"geo", "country"},
 		Match: parser.AndCondition{Children: []parser.Condition{
 			parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+			parser.StringCondition{Field: "channel", Op: parser.OpNeq, Value: "store"},
 			parser.SetCondition{Field: "tier", Op: parser.OpNotIn, Values: []string{"corp", "fraud"}},
 			parser.RangeCondition{Field: "amount", Min: 100, Max: math.Inf(+1)},
 		}},
@@ -349,6 +391,7 @@ func TestCompiledWireUnmarshalSurfacesReadErrorsAtEveryOffset(t *testing.T) {
 		Tags:        []string{"geo", "country"},
 		Match: parser.AndCondition{Children: []parser.Condition{
 			parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+			parser.StringCondition{Field: "channel", Op: parser.OpNeq, Value: "store"},
 			parser.SetCondition{Field: "tier", Op: parser.OpNotIn, Values: []string{"corp", "fraud"}},
 			parser.RangeCondition{Field: "amount", Min: 100, Max: math.Inf(+1)},
 		}},
@@ -372,6 +415,318 @@ func TestCompiledWireUnmarshalSurfacesReadErrorsAtEveryOffset(t *testing.T) {
 	if failures != len(raw) {
 		t.Fatalf("expected every cutoff in [0,%d) to surface an error, got %d", len(raw), failures)
 	}
+}
+
+func TestCompiledWireBadOpByteForStringCond(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0) // keyset count
+	buf.WriteByte(0) // bucket count
+	buf.WriteByte(1) // rule count
+	buf.WriteByte(1) // name len
+	buf.WriteByte('r')
+	buf.WriteByte(0) // desc
+	buf.WriteByte(0) // tag count
+	buf.WriteByte(1) // string cond
+	buf.WriteByte(1) // field len
+	buf.WriteByte('k')
+	buf.WriteByte(99) // unknown op byte
+	buf.WriteByte(1)  // value len
+	buf.WriteByte('v')
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed on bad op byte, got %v", err)
+	}
+}
+
+func TestCompiledWireBadOpByteForSetCond(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0)
+	buf.WriteByte(0)
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('r')
+	buf.WriteByte(0)
+	buf.WriteByte(0)
+	buf.WriteByte(2) // set cond
+	buf.WriteByte(1)
+	buf.WriteByte('k')
+	buf.WriteByte(99) // unknown op byte
+	buf.WriteByte(0)  // values count
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed on bad set op byte, got %v", err)
+	}
+}
+
+func TestCompiledWireBadPostFilterOpByteForString(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0) // keyset count
+	buf.WriteByte(1) // bucket count
+	buf.WriteByte(1) // keyset string len = 1
+	buf.WriteByte('a')
+	buf.WriteByte(1) // fields count
+	buf.WriteByte(1) // field name len
+	buf.WriteByte('a')
+	buf.WriteByte(1) // value-key count
+	buf.WriteByte(1) // value-key string len
+	buf.WriteByte('x')
+	buf.WriteByte(1) // ref count
+	buf.WriteByte(1) // ref name len
+	buf.WriteByte('r')
+	buf.WriteByte(1) // postFilter count
+	buf.WriteByte(1) // post-filter type: string
+	buf.WriteByte(1) // field len
+	buf.WriteByte('k')
+	buf.WriteByte(99) // unknown op byte
+	buf.WriteByte(1)
+	buf.WriteByte('v')
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed, got %v", err)
+	}
+}
+
+func TestCompiledWireBadPostFilterOpByteForSet(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0)
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('x')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('r')
+	buf.WriteByte(1)
+	buf.WriteByte(2) // post-filter type: set
+	buf.WriteByte(1)
+	buf.WriteByte('k')
+	buf.WriteByte(99) // unknown op byte
+	buf.WriteByte(0)
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed, got %v", err)
+	}
+}
+
+func TestCompiledWireMarshalPanicsOnUnsupportedSnapshotCondType(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on unsupported SnapshotCondition Type")
+		}
+	}()
+	cs := &indexed.CompiledSnapshot{
+		KeysetOrder:  []string{},
+		Buckets:      map[string]indexed.CompiledBucket{},
+		RulesInOrder: []indexed.SnapshotRule{{Name: "r", Match: indexed.SnapshotCondition{Type: "nonsense"}}},
+	}
+	_ = indexed.MarshalCompiledSnapshot(&bytes.Buffer{}, cs)
+}
+
+func TestCompiledWireMarshalPanicsOnUnsupportedPostFilterShape(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on unsupported post-filter shape")
+		}
+	}()
+	cs := &indexed.CompiledSnapshot{
+		KeysetOrder: []string{"a"},
+		Buckets: map[string]indexed.CompiledBucket{
+			"a": {
+				Fields: []string{"a"},
+				ByValueKey: map[string][]indexed.CompiledRuleRef{
+					"x": {{
+						Name:       "r",
+						PostFilter: []parser.Condition{unsupportedPostFilter{}},
+					}},
+				},
+			},
+		},
+	}
+	_ = indexed.MarshalCompiledSnapshot(&bytes.Buffer{}, cs)
+}
+
+func TestCompiledWireUnknownPostFilterTag(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0)
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('x')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('r')
+	buf.WriteByte(1)
+	buf.WriteByte(99) // unknown post-filter tag
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed on unknown post-filter tag, got %v", err)
+	}
+}
+
+func TestCompiledWireMalformedRangePostFilterMin(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0)
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('x')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('r')
+	buf.WriteByte(1) // 1 post-filter
+	buf.WriteByte(3) // range cond
+	buf.WriteByte(1) // field len
+	buf.WriteByte('n')
+	buf.WriteByte(3)
+	buf.Write([]byte("xxx")) // unparseable min
+	buf.WriteByte(2)
+	buf.Write([]byte("10"))
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed on bad range min, got %v", err)
+	}
+}
+
+func TestCompiledWireMalformedRangePostFilterMax(t *testing.T) {
+	var buf bytes.Buffer
+	buf.WriteString("BRG5")
+	_ = binary.Write(&buf, binary.BigEndian, indexed.CompiledSnapshotFormatVersion)
+	buf.WriteByte(0)
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('a')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('x')
+	buf.WriteByte(1)
+	buf.WriteByte(1)
+	buf.WriteByte('r')
+	buf.WriteByte(1)
+	buf.WriteByte(3) // range cond
+	buf.WriteByte(1)
+	buf.WriteByte('n')
+	buf.WriteByte(2)
+	buf.Write([]byte("10"))
+	buf.WriteByte(3)
+	buf.Write([]byte("xxx")) // unparseable max
+	if _, err := indexed.UnmarshalCompiledSnapshot(&buf); !errors.Is(err, indexed.ErrCompiledSnapshotMalformed) {
+		t.Fatalf("want ErrCompiledSnapshotMalformed on bad range max, got %v", err)
+	}
+}
+
+func TestCompiledWireMarshalPanicsOnUnsupportedOp(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on unsupported Op")
+		}
+	}()
+	cs := &indexed.CompiledSnapshot{
+		KeysetOrder:  []string{},
+		Buckets:      map[string]indexed.CompiledBucket{},
+		RulesInOrder: []indexed.SnapshotRule{{Name: "r", Match: indexed.SnapshotCondition{Type: "string", Field: "k", Op: "BOGUS", Value: "v"}}},
+	}
+	_ = indexed.MarshalCompiledSnapshot(&bytes.Buffer{}, cs)
+}
+
+type unsupportedPostFilter struct{}
+
+func (unsupportedPostFilter) Eval(map[string]interface{}) bool { return false }
+
+func TestCompiledWireRoundTripLargeSnapshotExercisesBufioFlushes(t *testing.T) {
+	orig := indexed.New()
+	for i := 0; i < 5000; i++ {
+		_ = orig.AddRule(indexed.Rule{
+			Name:        labeli("rule", i),
+			Description: labeli("description", i),
+			Tags:        []string{labeli("t", i), labeli("u", i)},
+			Match: parser.AndCondition{Children: []parser.Condition{
+				parser.StringCondition{Field: "country", Op: parser.OpEq, Value: labeli("BR", i%50)},
+				parser.SetCondition{Field: "tier", Op: parser.OpNotIn, Values: []string{labeli("blocked", i%10)}},
+			}},
+		})
+	}
+
+	cs, err := orig.ExportCompiledSnapshot()
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := indexed.MarshalCompiledSnapshot(&buf, cs); err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if buf.Len() < 100_000 {
+		t.Fatalf("expected marshal output > 100KB to exercise bufio flushes, got %d", buf.Len())
+	}
+	decoded, err := indexed.UnmarshalCompiledSnapshot(&buf)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	loaded, err := indexed.LoadCompiledSnapshot(decoded, nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !loaded.Built() {
+		t.Fatalf("loaded engine should be Built")
+	}
+	if len(loaded.RuleNames()) != 5000 {
+		t.Fatalf("expected 5000 loaded rules, got %d", len(loaded.RuleNames()))
+	}
+}
+
+func TestCompiledWireMarshalErrorsOnLargeSnapshotMidStream(t *testing.T) {
+	orig := indexed.New()
+	for i := 0; i < 5000; i++ {
+		_ = orig.AddRule(indexed.Rule{
+			Name:  labeli("rule", i),
+			Match: parser.StringCondition{Field: "country", Op: parser.OpEq, Value: labeli("BR", i%50)},
+		})
+	}
+	cs, err := orig.ExportCompiledSnapshot()
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	var good bytes.Buffer
+	if err := indexed.MarshalCompiledSnapshot(&good, cs); err != nil {
+		t.Fatalf("Marshal (control): %v", err)
+	}
+	total := good.Len()
+	// Sweep cutoffs in a few representative bands to exercise the
+	// helper functions' err != nil branches once bufio flushes the
+	// pending bytes.
+	for _, cutoff := range []int{100, 1000, 5000, total / 2, total - 1000} {
+		w := &errAfterNBytesWriter{remaining: cutoff}
+		if err := indexed.MarshalCompiledSnapshot(w, cs); err == nil {
+			t.Fatalf("cutoff=%d: expected error, got nil", cutoff)
+		}
+	}
+}
+
+func labeli(prefix string, i int) string {
+	return fmt.Sprintf("%s-%05d", prefix, i)
 }
 
 func marshalRoundTrip(t *testing.T, orig *indexed.Engine) *indexed.Engine {

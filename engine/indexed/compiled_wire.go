@@ -39,32 +39,39 @@ func compiledOpToByte(op string) byte {
 	case parser.OpNotIn:
 		return compiledOpNotIn
 	}
-	return 0
+	panic(fmt.Sprintf("indexed: MarshalCompiledSnapshot called with unsupported op %q (build invariant violated)", op))
 }
 
-func compiledOpFromByte(b byte) string {
+func compiledOpFromByte(b byte) (string, bool) {
 	switch b {
 	case compiledOpEq:
-		return parser.OpEq
+		return parser.OpEq, true
 	case compiledOpNeq:
-		return parser.OpNeq
+		return parser.OpNeq, true
 	case compiledOpIn:
-		return parser.OpIn
+		return parser.OpIn, true
 	case compiledOpNotIn:
-		return parser.OpNotIn
+		return parser.OpNotIn, true
 	}
-	return ""
+	return "", false
 }
 
 // MarshalCompiledSnapshot serializes cs to w in the v0.16.0 binary
 // format. Big-endian throughout for cross-architecture portability.
 // Floats are decimal-string-encoded so IEEE-754 infinity bounds
 // survive without an extra wire-level flag.
+//
+// If w is already a *bufio.Writer the buffering is reused; otherwise
+// the function wraps w in a default-sized bufio buffer for its own
+// use and flushes before returning.
 func MarshalCompiledSnapshot(w io.Writer, cs *CompiledSnapshot) error {
 	if cs == nil {
 		return fmt.Errorf("indexed: MarshalCompiledSnapshot called with nil snapshot")
 	}
-	bw := bufio.NewWriter(w)
+	bw, alreadyBuffered := w.(*bufio.Writer)
+	if !alreadyBuffered {
+		bw = bufio.NewWriter(w)
+	}
 	if _, err := bw.WriteString(compiledSnapshotMagic); err != nil {
 		return err
 	}
@@ -141,14 +148,24 @@ func MarshalCompiledSnapshot(w io.Writer, cs *CompiledSnapshot) error {
 			return err
 		}
 	}
+	if alreadyBuffered {
+		return nil
+	}
 	return bw.Flush()
 }
 
 // UnmarshalCompiledSnapshot reads a CompiledSnapshot from r. Refuses
 // ErrCompiledSnapshotFormatVersionMismatch on version mismatch and
 // ErrCompiledSnapshotMalformed for truncated input or unknown tags.
+//
+// If r is already a *bufio.Reader the buffering is reused; otherwise
+// the function wraps r in a default-sized bufio buffer for its own
+// use.
 func UnmarshalCompiledSnapshot(r io.Reader) (*CompiledSnapshot, error) {
-	br := bufio.NewReader(r)
+	br, ok := r.(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReader(r)
+	}
 	hdr := make([]byte, 4)
 	if _, err := io.ReadFull(br, hdr); err != nil {
 		return nil, fmt.Errorf("%w: header: %v", ErrCompiledSnapshotMalformed, err)
@@ -339,7 +356,7 @@ func wireWriteSnapshotCond(w *bufio.Writer, c SnapshotCondition) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("indexed: MarshalCompiledSnapshot: unsupported condition type %q", c.Type)
+		panic(fmt.Sprintf("indexed: MarshalCompiledSnapshot called with unsupported condition type %q (build invariant violated)", c.Type))
 	}
 }
 
@@ -362,7 +379,11 @@ func wireReadSnapshotCond(r *bufio.Reader) (SnapshotCondition, error) {
 		if err != nil {
 			return SnapshotCondition{}, err
 		}
-		return SnapshotCondition{Type: "string", Field: field, Op: compiledOpFromByte(op), Value: val}, nil
+		opStr, ok := compiledOpFromByte(op)
+		if !ok {
+			return SnapshotCondition{}, fmt.Errorf("unknown op byte %d for string cond", op)
+		}
+		return SnapshotCondition{Type: "string", Field: field, Op: opStr, Value: val}, nil
 	case compiledCondSet:
 		field, err := wireReadString(r)
 		if err != nil {
@@ -383,7 +404,11 @@ func wireReadSnapshotCond(r *bufio.Reader) (SnapshotCondition, error) {
 				return SnapshotCondition{}, err
 			}
 		}
-		return SnapshotCondition{Type: "set", Field: field, Op: compiledOpFromByte(op), Values: values}, nil
+		opStr, ok := compiledOpFromByte(op)
+		if !ok {
+			return SnapshotCondition{}, fmt.Errorf("unknown op byte %d for set cond", op)
+		}
+		return SnapshotCondition{Type: "set", Field: field, Op: opStr, Values: values}, nil
 	case compiledCondRange:
 		field, err := wireReadString(r)
 		if err != nil {
@@ -460,7 +485,7 @@ func wireWriteParserCond(w *bufio.Writer, c parser.Condition) error {
 		}
 		return wireWriteString(w, formatFloat(v.Max))
 	default:
-		return fmt.Errorf("indexed: MarshalCompiledSnapshot: unsupported post-filter shape %T", c)
+		panic(fmt.Sprintf("indexed: MarshalCompiledSnapshot called with unsupported post-filter shape %T (build invariant violated)", c))
 	}
 }
 
@@ -483,7 +508,11 @@ func wireReadParserCond(r *bufio.Reader) (parser.Condition, error) {
 		if err != nil {
 			return nil, err
 		}
-		return parser.StringCondition{Field: field, Op: compiledOpFromByte(op), Value: val}, nil
+		opStr, ok := compiledOpFromByte(op)
+		if !ok {
+			return nil, fmt.Errorf("unknown op byte %d for string post-filter", op)
+		}
+		return parser.StringCondition{Field: field, Op: opStr, Value: val}, nil
 	case compiledCondSet:
 		field, err := wireReadString(r)
 		if err != nil {
@@ -504,7 +533,11 @@ func wireReadParserCond(r *bufio.Reader) (parser.Condition, error) {
 				return nil, err
 			}
 		}
-		return parser.SetCondition{Field: field, Op: compiledOpFromByte(op), Values: values}, nil
+		opStr, ok := compiledOpFromByte(op)
+		if !ok {
+			return nil, fmt.Errorf("unknown op byte %d for set post-filter", op)
+		}
+		return parser.SetCondition{Field: field, Op: opStr, Values: values}, nil
 	case compiledCondRange:
 		field, err := wireReadString(r)
 		if err != nil {

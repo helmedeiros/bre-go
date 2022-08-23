@@ -1,6 +1,8 @@
 # v0.15.0 Snapshot Scientific Validation Report
 
-> **TL;DR.** Six of seven pre-registered experiments pass. E2 (load-time speedup) fails at 0.49× median — the snapshot path is roughly twice as *slow* as the CSV + `parser.ParseToCondition` baseline at 10k rules. The snapshot feature still ships in v0.15.0; its value is determinism, cross-architecture behavioral equivalence, scale-to-100k correctness, refusal-path integrity, and adversarial robustness, all of which were proven. The "build-once, deploy-many cuts load time" framing in ADR-0040, CHANGELOG, README, and cookbook was wrong on the speed dimension and gets revised in the same release window as this report.
+> **TL;DR.** Six of seven pre-registered experiments pass. E2 (load-time speedup) fails at 0.49× median — the JSON snapshot path is roughly twice as *slow* as the CSV + `parser.ParseToCondition` baseline at 10k rules. The snapshot feature still ships in v0.15.0; its value is determinism, cross-architecture behavioral equivalence, scale-to-100k correctness, refusal-path integrity, and adversarial robustness, all of which were proven. The "build-once, deploy-many cuts load time" framing in ADR-0040, CHANGELOG, README, and cookbook was wrong on the speed dimension and gets revised in the same release window as this report.
+>
+> **Follow-up (v0.16.0):** the load-time gap surfaced here drove the experimental exploration at [`scientific/v0.15.0/experimental/`](experimental/REPORT.md). Four candidate formats were measured under the same pre-registered conditions; C5 (pre-bucketed binary) reached **1.85× faster than source-build at 10k rules and 2.93× at 100k**. It shipped as the v0.16.0 binary snapshot path ([ADR-0041](../../docs/architecture/decisions/0041-binary-snapshot-format.md)). The v0.15.0 JSON format stays available for cross-language and human-readable use cases; the v0.16.0 binary format is the right choice when load time matters.
 
 ## Pre-registration
 
@@ -169,6 +171,6 @@ Each check uses `errors.Is(got, want)`.
 
 ## Follow-up actions
 
-1. **Revise the v0.15.0 documentation** to drop load-time speedup language and lead with the dimensions that the harness validated. Same release window as this report.
-2. **Open a follow-up ADR** for a compact binary snapshot format if a real consumer comes back with a load-time requirement this measurement does not meet. Until that consumer exists, build the right thing for the proven dimensions and resist over-engineering for hypothetical speed.
-3. **Treat the bar as standing.** Future v0.15.x patch releases or v0.16.0 work that touches the snapshot format must re-run this harness and clear E1, E3–E7. E2 stays on the books as the open speed gap until a format change addresses it.
+1. **Revise the v0.15.0 documentation** to drop load-time speedup language and lead with the dimensions that the harness validated. Same release window as this report. **Done.**
+2. **Open a follow-up ADR** for a compact binary snapshot format if a real consumer comes back with a load-time requirement this measurement does not meet. **Done — became [ADR-0041](../../docs/architecture/decisions/0041-binary-snapshot-format.md), v0.16.0.** The exploration at [`scientific/v0.15.0/experimental/`](experimental/REPORT.md) measured four candidate formats; the pre-bucketed binary (C5) reached 1.85× at 10k and 2.93× at 100k, and was promoted to the public `engine/indexed.MarshalCompiledSnapshot` / `UnmarshalCompiledSnapshot` API.
+3. **Treat the bar as standing.** Future work that touches either snapshot format re-runs this harness AND `scientific/v0.15.0/experimental/scripts/run-experimental.sh`. E2 stays on the books at the 3.0×-at-10k bar; v0.16.0 closed the 100k gap (2.93×) but missed the 10k bar (1.85×). The remaining headroom would need a zero-copy / memory-mapped format (out of scope until a consumer asks).
