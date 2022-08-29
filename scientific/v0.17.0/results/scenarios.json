@@ -1,0 +1,658 @@
+[
+  {
+    "scenario": "happy-single-match",
+    "description": "One input that matches exactly one rule. Expected: one span, success status, AttrMatchedCount=1, AttrMatchedNames=[\u003crule name\u003e].",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "3e114914c8233e510c674000e9c27359",
+        "span_id": "46922ea50299b4f7",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 28291
+      }
+    ]
+  },
+  {
+    "scenario": "happy-no-match",
+    "description": "One input that matches no rule. Expected: one span, success status, AttrMatchedCount=0, AttrMatchedNames=[].",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "735e87fcab0fdece813b14912d7dbea4",
+        "span_id": "274d70f009137c17",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 0
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": []
+          }
+        ],
+        "duration_ns": 6250
+      }
+    ]
+  },
+  {
+    "scenario": "happy-multi-match",
+    "description": "One input that matches three rules via overlapping conditions. Expected: AttrMatchedNames carries all three in first-match order.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "531c131e88230646f9e7f25cbc358ff0",
+        "span_id": "666f4a60da360cad",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br-equality"
+            ]
+          }
+        ],
+        "duration_ns": 1458
+      }
+    ]
+  },
+  {
+    "scenario": "error-action-panic",
+    "description": "Rule whose Action panics. Expected: span has Error status, recorded error event with the typed *ActionPanicError, AttrMatchedNames still reflects the rule that matched before its action blew up.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "6366052e06bfe8d4699402618ad34b02",
+        "span_id": "61ce18e2310b96fc",
+        "status_code": "Error",
+        "status_description": "indexed: action of rule \"explodes\" panicked: synthetic action panic",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "explodes"
+            ]
+          }
+        ],
+        "events": [
+          {
+            "name": "exception",
+            "attributes": [
+              {
+                "key": "exception.type",
+                "type": "string",
+                "value": "*indexed.ActionPanicError"
+              },
+              {
+                "key": "exception.message",
+                "type": "string",
+                "value": "indexed: action of rule \"explodes\" panicked: synthetic action panic"
+              }
+            ]
+          }
+        ],
+        "duration_ns": 52375
+      }
+    ],
+    "notes": [
+      "Audit: does the recorded error event include the panicked rule's name? An operator triaging this needs to know WHICH rule panicked, not just that one did."
+    ]
+  },
+  {
+    "scenario": "ctx-cancellation",
+    "description": "Caller cancels ctx mid-Execute. Expected: span has the cancellation error recorded; status code Error.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "9ba2be2e09e67764c1e4ed0299357cc7",
+        "span_id": "ea58d6dd448ba5d3",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 0
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": []
+          },
+          {
+            "key": "rule.engine.canceled",
+            "type": "bool",
+            "value": true
+          },
+          {
+            "key": "rule.engine.cancel.reason",
+            "type": "string",
+            "value": "canceled"
+          }
+        ],
+        "duration_ns": 2833
+      }
+    ],
+    "notes": [
+      "Audit: is the cancellation visible on the span? Status code Error? RecordError event with context.Canceled?"
+    ]
+  },
+  {
+    "scenario": "correlation-id-set",
+    "description": "Caller stamps a correlation ID on ctx via engine.WithCorrelationID. Expected: span has AttrCorrelationID with the stamped value.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "67acbcf390395cfd3296627d5c6f0413",
+        "span_id": "5e77aad35773023e",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.correlation_id",
+            "type": "string",
+            "value": "req-abc-123"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 1791
+      }
+    ]
+  },
+  {
+    "scenario": "correlation-id-absent",
+    "description": "No correlation ID on ctx. Expected: AttrCorrelationID attribute is absent (not empty-string).",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "cf6fb14559778555e90e7d6d42622117",
+        "span_id": "7eff1d16619d5189",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 1375
+      }
+    ],
+    "notes": [
+      "Audit: AttrCorrelationID should be ABSENT from the attribute list (not present with empty value). Confirm."
+    ]
+  },
+  {
+    "scenario": "nested-under-parent",
+    "description": "Caller wraps Execute in their own parent span. Expected: the rule.engine.execute span is a CHILD of the parent, same trace ID.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "4bee994813422a6e14584b22bcac8c75",
+        "span_id": "5df805885a5f90f3",
+        "parent_id": "f8b53959d90d3953",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 1292
+      },
+      {
+        "name": "incoming-http-request",
+        "trace_id": "4bee994813422a6e14584b22bcac8c75",
+        "span_id": "f8b53959d90d3953",
+        "status_code": "Unset",
+        "duration_ns": 2708
+      }
+    ],
+    "notes": [
+      "Audit: the rule.engine.execute span MUST have parent_id == incoming-http-request span's span_id, and the same trace_id."
+    ]
+  },
+  {
+    "scenario": "concurrent-executes",
+    "description": "Eight goroutines hammer Execute concurrently with their own parent spans. Expected: 8 distinct rule.engine.execute spans, each parented to its own goroutine's parent.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "f4ee46ce5c243a7e6f1bfd81c404418e",
+        "span_id": "33b547de1bf0bdbd",
+        "parent_id": "bd6dbf51c55b8cff",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 10417
+      },
+      {
+        "name": "worker-4",
+        "trace_id": "f4ee46ce5c243a7e6f1bfd81c404418e",
+        "span_id": "bd6dbf51c55b8cff",
+        "status_code": "Unset",
+        "duration_ns": 27125
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "7d71c6a90d4a5bec2e6410e4233fcb29",
+        "span_id": "da2bc7a97241b048",
+        "parent_id": "917feff1a4e9de1c",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 1708
+      },
+      {
+        "name": "worker-5",
+        "trace_id": "7d71c6a90d4a5bec2e6410e4233fcb29",
+        "span_id": "917feff1a4e9de1c",
+        "status_code": "Unset",
+        "duration_ns": 5458
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "872fa0440bc94996d664bbb3db6a9865",
+        "span_id": "91795f54105b24af",
+        "parent_id": "5d6ed2d985549efc",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 21167
+      },
+      {
+        "name": "worker-2",
+        "trace_id": "872fa0440bc94996d664bbb3db6a9865",
+        "span_id": "5d6ed2d985549efc",
+        "status_code": "Unset",
+        "duration_ns": 37041
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "93f854c56e19adf11bebdc26bcbc004f",
+        "span_id": "0a59686d385ed066",
+        "parent_id": "7f6985593284fb96",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 1458
+      },
+      {
+        "name": "worker-6",
+        "trace_id": "93f854c56e19adf11bebdc26bcbc004f",
+        "span_id": "7f6985593284fb96",
+        "status_code": "Unset",
+        "duration_ns": 4666
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "2e08595d9d6741a7be963b57db3209f6",
+        "span_id": "a48bb85e8d4dba76",
+        "parent_id": "d103f0896f0a866a",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 14875
+      },
+      {
+        "name": "worker-3",
+        "trace_id": "2e08595d9d6741a7be963b57db3209f6",
+        "span_id": "d103f0896f0a866a",
+        "status_code": "Unset",
+        "duration_ns": 42333
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "372f167eac86cdd9f40911fa7a658a86",
+        "span_id": "80e15cb894c85a6d",
+        "parent_id": "3c90bd111e317b54",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 37791
+      },
+      {
+        "name": "worker-7",
+        "trace_id": "372f167eac86cdd9f40911fa7a658a86",
+        "span_id": "3c90bd111e317b54",
+        "status_code": "Unset",
+        "duration_ns": 95791
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "b7cebec261f7b3e4c3dd8bbf30a0603d",
+        "span_id": "229cdbae96ef8b51",
+        "parent_id": "000734bf1affcb7e",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 9750
+      },
+      {
+        "name": "worker-1",
+        "trace_id": "b7cebec261f7b3e4c3dd8bbf30a0603d",
+        "span_id": "000734bf1affcb7e",
+        "status_code": "Unset",
+        "duration_ns": 19666
+      },
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "b07c9cbd21407cfa910e755de1f4e0ed",
+        "span_id": "b62eaaecb764bf78",
+        "parent_id": "cfe7145bc60386be",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "br"
+            ]
+          }
+        ],
+        "duration_ns": 10750
+      },
+      {
+        "name": "worker-0",
+        "trace_id": "b07c9cbd21407cfa910e755de1f4e0ed",
+        "span_id": "cfe7145bc60386be",
+        "status_code": "Unset",
+        "duration_ns": 68916
+      }
+    ],
+    "notes": [
+      "Audit: 8 rule.engine.execute spans, each with a distinct parent_id matching the worker-N span. No span leaks or cross-contamination."
+    ]
+  },
+  {
+    "scenario": "high-fanout-100-matches",
+    "description": "One input that matches 100 rules. Expected: AttrMatchedNames is a 100-element string slice. Audit: is this readable in a tracing UI? What's the practical ceiling?",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "fc332257301b9f2fdd1e0910e1a132af",
+        "span_id": "5af2a9d5c6c78d9f",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "rule-000"
+            ]
+          }
+        ],
+        "duration_ns": 2208
+      }
+    ],
+    "notes": [
+      "Audit: AttrMatchedNames is a 100-element string slice. In a real tracing UI (Jaeger, Tempo, Honeycomb), is this readable? Is there a practical ceiling we should document? Should we truncate at N and add an overflow indicator?"
+    ]
+  },
+  {
+    "scenario": "unicode-rule-name",
+    "description": "Rule name with unicode + emoji + accents. Expected: round-trips through attribute encoding unchanged.",
+    "spans": [
+      {
+        "name": "rule.engine.execute",
+        "trace_id": "9baf5941e0bf45616f44ec636b43eab5",
+        "span_id": "4c70ded6983709e7",
+        "status_code": "Unset",
+        "attributes": [
+          {
+            "key": "rule.engine.adapter",
+            "type": "string",
+            "value": "*indexed.Engine"
+          },
+          {
+            "key": "rule.engine.matched.count",
+            "type": "int64",
+            "value": 1
+          },
+          {
+            "key": "rule.engine.matched.names",
+            "type": "string_slice",
+            "value": [
+              "regra-brasileira-ção-☃-🇧🇷"
+            ]
+          }
+        ],
+        "duration_ns": 1750
+      }
+    ],
+    "notes": [
+      "Audit: AttrMatchedNames preserves unicode + emoji bytes faithfully."
+    ]
+  }
+]
