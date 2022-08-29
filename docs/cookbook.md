@@ -27,6 +27,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Validate your rule set with Diagnose](#validate-your-rule-set-with-diagnose)
   - [Build once, deploy many with snapshots](#build-once-deploy-many-with-snapshots)
   - [Use the binary snapshot format](#use-the-binary-snapshot-format)
+  - [Trace Execute with OpenTelemetry](#trace-execute-with-opentelemetry)
 
 ## Patterns
 
@@ -1072,3 +1073,86 @@ v0.16.0 binary wins when you need:
 - Smaller files at scale (50% smaller at 10k rules).
 
 Both round-trip identically. You can ship one of each from the same build job and choose at the consumer.
+
+### Trace Execute with OpenTelemetry
+
+Since `v0.17.0`, `observability/otel.Wrap` decorates any `engine.Engine` with one OpenTelemetry span per `Execute`. The adapter lives at `observability/otel/` inside the main bre-go module and pins `go.opentelemetry.io/otel` v1.11.x so the main module's Go directive stays at `go 1.18`.
+
+```sh
+go get github.com/helmedeiros/bre-go@v0.17.0
+# observability/otel is part of the main module -- no separate install
+```
+
+```go
+import (
+    "context"
+
+    "go.opentelemetry.io/otel"
+
+    "github.com/helmedeiros/bre-go/engine"
+    "github.com/helmedeiros/bre-go/engine/indexed"
+    "github.com/helmedeiros/bre-go/engine/parser"
+    breotel "github.com/helmedeiros/bre-go/observability/otel"
+)
+
+func setup() engine.Engine {
+    inner := indexed.New()
+    _ = inner.AddRule(indexed.Rule{
+        Name:  "br",
+        Match: parser.StringCondition{Field: "country", Op: parser.OpEq, Value: "BR"},
+    })
+    _ = inner.Build()
+
+    // otel.Tracer comes from your existing TracerProvider setup.
+    return breotel.Wrap(inner, otel.Tracer("rules"))
+}
+
+func handle(ctx context.Context, traced engine.Engine, fact map[string]string) {
+    // The Execute call automatically becomes a span parented to ctx's
+    // current span. Matched rule names are recorded as an attribute.
+    _, _ = traced.Execute(ctx, engine.Request{Input: fact})
+}
+```
+
+Every `Execute` produces a span named `"rule.engine.execute"` with these attributes:
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `rule.engine.adapter` | string | concrete type of the inner engine (e.g., `"*indexed.Engine"`) |
+| `rule.engine.matched.count` | int | number of matched rules |
+| `rule.engine.matched.names` | string slice | matched rule names in first-match order |
+| `rule.engine.correlation_id` | string | `engine.CorrelationIDFromContext(ctx)` value; omitted when absent |
+
+On error (anything other than cancellation): span gets `codes.Error` status and the typed error is recorded via `span.RecordError`. The status description includes the offending rule's name when the error is bre-go's typed `*ActionPanicError` or `*FanoutTooLargeError`.
+
+**Cancellation is not an error.** `context.Canceled` and `context.DeadlineExceeded` get a dedicated branch — they're caller intent (upstream timeout, graceful shutdown), not engine failure. The span carries `rule.engine.canceled = true` plus a `rule.engine.cancel.reason` enum (`"canceled"` or `"deadline_exceeded"`); status stays `Unset` and no exception event is recorded. Operators can filter "show me canceled executions" with `canceled = true` without those entries inflating error-rate dashboards. The Go return value is unchanged — `Execute` still returns the original `context.Canceled` / `context.DeadlineExceeded` sentinel for caller-side `errors.Is` checks.
+
+This design was driven by the pre-tag scientific review documented in [`scientific/v0.17.0/REPORT.md`](../scientific/v0.17.0/REPORT.md).
+
+**Span name.** Override via `breotel.WithSpanName("pricing.rules.execute")` for callers running multiple distinct rule engines within one service:
+
+```go
+pricingTraced := breotel.Wrap(pricingEngine, tracer, breotel.WithSpanName("pricing.rules.execute"))
+discountTraced := breotel.Wrap(discountEngine, tracer, breotel.WithSpanName("discount.rules.execute"))
+```
+
+**Correlation ID flow.** Stamp the correlation ID on the context once (typically at the HTTP middleware layer), and every `Execute` span downstream carries it as an attribute automatically:
+
+```go
+ctx = engine.WithCorrelationID(ctx, "req-abc-123")
+traced.Execute(ctx, req) // span has rule.engine.correlation_id = "req-abc-123"
+```
+
+**Coexists with `StructuredTelemetryListener`.** The OTel adapter wraps via `engine.Engine`; the structured-telemetry listener (v0.13.0) attaches via `AddListener`. Both can run on the same inner engine — OTel for the distributed-tracing path, the listener for log-pipeline / metrics-counter consumers.
+
+**Capability forwarding.** The wrapped engine exposes `RuleNames()`, `RuleInfos()`, `AddListener()`, and `Unwrap()` and delegates to the inner engine when it supports the matching capability interface. Callers that need adapter-specific methods (e.g., `(*indexed.Engine).Build()`) can use `Unwrap()`:
+
+```go
+if u, ok := traced.(interface{ Unwrap() engine.Engine }); ok {
+    if idx, ok := u.Unwrap().(*indexed.Engine); ok {
+        _ = idx.Diagnose()
+    }
+}
+```
+
+**No-op tracer is safe.** Passing a no-op TracerProvider (e.g., `noop.NewTracerProvider().Tracer("")`) produces no observable side effects — useful for tests that don't care about traces or for environments where OTel isn't configured.

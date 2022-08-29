@@ -67,3 +67,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0039](0039-rule-set-diagnostics.md) | Rule-Set Diagnostics on engine/indexed | ✅ Accepted (v0.14.0) |
 | [0040](0040-snapshot-export-import.md) | Snapshot Export and Import for engine/indexed | ✅ Accepted (v0.15.0) |
 | [0041](0041-binary-snapshot-format.md) | Binary Snapshot Format (Pre-Bucketed) for engine/indexed | ✅ Accepted (v0.16.0) |
+| [0042](0042-opentelemetry-adapter.md) | OpenTelemetry Adapter for engine.Engine | ✅ Accepted (v0.17.0) |

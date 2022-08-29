@@ -11,6 +11,50 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.17.0] - 2022-08-29
+
+Seventeenth minor release. Adds the **OpenTelemetry adapter**: `observability/otel.Wrap(inner, tracer, opts...)` decorates any `engine.Engine` with one OpenTelemetry span per `Execute`. Matched rule names attached as a span attribute; correlation IDs from `engine.WithCorrelationID(ctx, id)` automatically tagged; cancellation distinguished from failure (caller intent gets dedicated `canceled` + `cancel.reason` attributes, not `codes.Error`); error path records the typed error including the offending rule name. Pinned to `go.opentelemetry.io/otel` v1.11.x for Go-1.18 compatibility, so consumers don't need to upgrade Go to pull v0.17.0. A pre-tag scientific review at [`scientific/v0.17.0/REPORT.md`](scientific/v0.17.0/REPORT.md) audited 11 production-mirroring scenarios and drove the cancellation-attributes design change before the tag. Additive (no breaking changes from v0.16.x).
+
+### Added
+
+- `observability/otel.Wrap(inner engine.Engine, tracer trace.Tracer, opts ...Option) engine.Engine` -- decorator constructor. Returned value satisfies `engine.Engine`.
+- `observability/otel.WithSpanName(name string) Option` -- override the default `"rule.engine.execute"` span name (useful for callers using bre-go in multiple distinct rule contexts within a single service).
+- Span attribute key constants: `AttrAdapter` (`"rule.engine.adapter"`), `AttrMatchedCount` (`"rule.engine.matched.count"`), `AttrMatchedNames` (`"rule.engine.matched.names"`), `AttrCorrelationID` (`"rule.engine.correlation_id"`), `AttrCanceled` (`"rule.engine.canceled"`), `AttrCancelReason` (`"rule.engine.cancel.reason"`). Exported so callers can filter and aggregate on them in their tracing backend.
+
+### Span model
+
+One span per `Execute` call. Matched rule names go on the span as a `StringSlice` attribute -- not as child spans. Per-match observability would produce more trace traffic than the matches themselves (rule matches are sub-microsecond); the attribute approach gives operators what they need (which rules fired) without the per-match cost. See ADR-0042 §2 for the design rationale.
+
+### Cancellation is not an error
+
+`context.Canceled` and `context.DeadlineExceeded` get a dedicated branch: `AttrCanceled = true` plus `AttrCancelReason = "canceled"` / `"deadline_exceeded"`, with span `Status` left `Unset` (success-by-default) and no `RecordError` event. Cancellation is caller intent (upstream timeout, graceful shutdown), not engine failure -- marking it as `codes.Error` would inflate error-rate dashboards with expected outcomes. The Go return value still carries the original `context.Canceled` / `context.DeadlineExceeded` sentinel; only the OTel surface representation changed. This design was driven by the pre-tag scientific review (`scientific/v0.17.0/REPORT.md` §5).
+
+### Capability forwarding
+
+The wrapper exposes `RuleNames() []string`, `RuleInfos() []engine.RuleInfo`, and `AddListener(observability.ExecutionListener)` methods on its result type and forwards them to the inner engine when it implements the corresponding interface (returns nil / no-op when it doesn't). Callers using `*indexed.Engine` (which supports all three) get the same surface through the OTel wrapper. The wrapper also exposes `Unwrap() engine.Engine` for callers who need adapter-specific methods (e.g., `*indexed.Engine.Build()`).
+
+### Dependencies
+
+The OTel adapter lives at `observability/otel/` inside the main bre-go module. Pins `go.opentelemetry.io/otel` v1.11.x -- the contemporary release compatible with Go 1.18. Main module's `go.mod` directive stays at `go 1.18`; consumers don't need to upgrade Go to pull in v0.17.0. Consumers who don't import the OTel package don't pay the dep cost in their build graph (Go's standard transitive pruning handles this).
+
+### Documentation
+
+- README banner bumped to v0.17.0; Stability section adds the OTel adapter bullet.
+- Cookbook gains a "Trace Execute with OpenTelemetry" entry showing the canonical setup, the `WithSpanName` option, the correlation-ID auto-tagging behavior, and how OTel and the v0.13.0 `StructuredTelemetryListener` coexist on the same inner engine.
+- ADR-0042 status: Proposed → Accepted (v0.17.0).
+
+### Testing
+
+- 19 tests in `observability/otel/otel_test.go` using OTel's in-memory `tracetest.SpanRecorder`. Cover: default + customized span name, every documented attribute on the success path, correlation-ID auto-tagging when set and omission when absent, **cancellation handled via `canceled` / `cancel.reason` attributes with non-Error status** (both `context.Canceled` and `context.DeadlineExceeded` paths), error-path span status + recorded error for non-cancel failures, parent-span propagation when called from within an existing span, capability forwarding (RuleNames + RuleInfos + AddListener) when inner supports them, nil/no-op when inner doesn't, Unwrap, and the no-op tracer graceful-degradation case. 100% coverage on the OTel package.
+- 11-scenario telemetry usability review at `scientific/v0.17.0/cmd/otel-review/` captures real span trees + attributes as JSON; commits to `scientific/v0.17.0/results/scenarios.json` as evidence. Drove the cancellation-attributes design change before tagging.
+
+### Housekeeping (shipped in the same window)
+
+- `engine/indexed/compiled_wire.go` coverage rose from 88% (after v0.16.0) to 99.9%: `Marshal` and `Unmarshal` now detect pre-buffered writers/readers so tests can force per-byte flushes; internal-invariant paths converted from sentinel errors to panics where AddRule already validates input; `compiledOpFromByte` now returns `(string, bool)` and wire-side callers surface `ErrCompiledSnapshotMalformed` on unknown op bytes (previously silently round-tripped to `Op=""`).
+- `scientific/v0.15.0/REPORT.md` and `scientific/v0.15.0/experimental/REPORT.md` updated to cross-link the v0.16.0 binary-format outcome.
+
+ADR-0042 Accepted. 42 ADRs on `main`, 99.9% total coverage including the new OTel package at 100%.
+
 ## [0.16.0] - 2022-08-22
 
 Sixteenth minor release. Adds the binary "compiled snapshot" path for `engine/indexed`: a content-addressable, cross-architecture-portable, pre-bucketed format that skips `AddRule` and `Build` at load time. Validated by the scientific harness committed in v0.15.0/experimental: **1.85× faster than CSV + `parser.ParseToCondition` at 10 000 rules, 2.93× faster at 100 000 rules**, with a per-rule scaling ratio (0.765) dramatically better than the source path's (0.483). v0.15.0's JSON snapshot format stays available; ADR-0041 documents the rationale and the honest performance curve. Additive (no breaking changes from v0.15.x).

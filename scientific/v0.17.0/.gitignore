@@ -1,0 +1,2 @@
+# stray `go build` outputs from the suite root
+/otel-review
