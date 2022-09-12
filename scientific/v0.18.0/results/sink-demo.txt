@@ -1,0 +1,17 @@
+=== AtomicCounterSink ===
+executions=9 matched=6 errored=0 canceled=1 deadline_exceeded=0
+
+=== ChannelSink ===
+[ 1] adapter=*indexed.Engine matched=1 duration=10µs canceled=false err=<nil>
+[ 2] adapter=*indexed.Engine matched=1 duration=292ns canceled=false err=<nil>
+[ 3] adapter=*indexed.Engine matched=0 duration=167ns canceled=false err=<nil>
+[ 4] adapter=*indexed.Engine matched=1 duration=125ns canceled=false err=<nil>
+[ 5] adapter=*indexed.Engine matched=1 duration=125ns canceled=false err=<nil>
+[ 6] adapter=*indexed.Engine matched=1 duration=125ns canceled=false err=<nil>
+[ 7] adapter=*indexed.Engine matched=0 duration=125ns canceled=false err=<nil>
+[ 8] adapter=*indexed.Engine matched=1 duration=125ns canceled=false err=<nil>
+[ 9] adapter=*indexed.Engine matched=0 duration=417ns canceled=true err=<nil>
+channel-received=9 dropped=0
+
+=== PercentileSink ===
+p50=333ns p95=31.6µs p99=31.6µs

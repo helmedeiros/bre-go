@@ -28,6 +28,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Build once, deploy many with snapshots](#build-once-deploy-many-with-snapshots)
   - [Use the binary snapshot format](#use-the-binary-snapshot-format)
   - [Trace Execute with OpenTelemetry](#trace-execute-with-opentelemetry)
+  - [Aggregate metrics with the metrics port](#aggregate-metrics-with-the-metrics-port)
 
 ## Patterns
 
@@ -1128,6 +1129,95 @@ On error (anything other than cancellation): span gets `codes.Error` status and 
 **Cancellation is not an error.** `context.Canceled` and `context.DeadlineExceeded` get a dedicated branch — they're caller intent (upstream timeout, graceful shutdown), not engine failure. The span carries `rule.engine.canceled = true` plus a `rule.engine.cancel.reason` enum (`"canceled"` or `"deadline_exceeded"`); status stays `Unset` and no exception event is recorded. Operators can filter "show me canceled executions" with `canceled = true` without those entries inflating error-rate dashboards. The Go return value is unchanged — `Execute` still returns the original `context.Canceled` / `context.DeadlineExceeded` sentinel for caller-side `errors.Is` checks.
 
 This design was driven by the pre-tag scientific review documented in [`scientific/v0.17.0/REPORT.md`](../scientific/v0.17.0/REPORT.md).
+
+### Aggregate metrics with the metrics port
+
+Since `v0.18.0`, `observability/metrics.Wrap` decorates any `engine.Engine` with aggregate metric emission via the `observability.ExecutionMetricSink` port. The contract is bre-go's, not OTel's — backends adapt to it. The OTel metric adapter ships in v0.19.0; until then, consumers either use the built-in `RecordingSink` or write their own sink in ~50 LOC.
+
+The typed event:
+
+```go
+type ExecutionMetric struct {
+    Adapter      string         // e.g., "*indexed.Engine"
+    MatchedCount int
+    MatchedNames []string
+    Duration     time.Duration
+    Err          error          // nil on success or cancellation
+    Canceled     bool
+    CancelReason string         // "canceled" / "deadline_exceeded" / ""
+}
+```
+
+`Err` and `(Canceled, CancelReason)` are mutually exclusive — cancellation is caller intent (upstream timeout, graceful shutdown), not engine failure. Sinks gating on `Err != nil` for error-rate dashboards don't double-count cancellation as failure. This carries the v0.17 OTel adapter's cancellation lesson into the data model itself.
+
+The one-method port:
+
+```go
+type ExecutionMetricSink interface {
+    RecordExecution(ExecutionMetric)
+}
+```
+
+The decorator:
+
+```go
+import (
+    "github.com/helmedeiros/bre-go/engine/indexed"
+    "github.com/helmedeiros/bre-go/observability/metrics"
+)
+
+inner := indexed.New()
+// ... AddRule, Build ...
+
+sink := &metrics.RecordingSink{}                // thread-safe append-buffer
+metered := metrics.Wrap(inner, sink)             // returns engine.Engine
+
+metered.Execute(ctx, req)                        // emits one ExecutionMetric to sink
+```
+
+**Stack with the v0.17 OTel span decorator:**
+
+```go
+traced  := otel.Wrap(inner, tracer)              // v0.17 span decorator
+metered := metrics.Wrap(traced, sink)            // v0.18 metric decorator
+metered.Execute(ctx, req)                        // spans + metrics, single Execute call
+```
+
+Order matters only for cost accounting — the outermost decorator's `ExecutionMetric.Duration` includes the work of the inner decorators. For non-blocking sinks the overhead is sub-microsecond.
+
+**Write your own sink in ~50 LOC.** The port has one method and the typed event covers every case (success, error, cancel-canceled, cancel-deadline). Examples from the pre-tag review at [`scientific/v0.18.0/sinks/`](../scientific/v0.18.0/sinks/):
+
+```go
+type AtomicCounterSink struct {
+    executions, matched, errored, canceled uint64
+}
+
+func (s *AtomicCounterSink) RecordExecution(m observability.ExecutionMetric) {
+    atomic.AddUint64(&s.executions, 1)
+    if m.MatchedCount > 0 {
+        atomic.AddUint64(&s.matched, 1)
+    }
+    switch {
+    case m.Err != nil:
+        atomic.AddUint64(&s.errored, 1)
+    case m.Canceled:
+        atomic.AddUint64(&s.canceled, 1)
+    }
+}
+```
+
+That's the entire interface contract satisfied. Lock-free, no external deps, fits a hot path.
+
+**Choosing between metrics-port and the v0.13 `StructuredTelemetryListener`.** Both consume per-Execute data, but the listener is attached via `AddListener` (callback style) and doesn't see `ctx`; the metrics decorator wraps `engine.Engine` and does. The two coexist on the same inner engine — use the listener for log-pipeline emission, the metrics decorator for aggregate counters / histograms. The decorator's cancellation distinction (caller intent vs failure) is the operationally important advantage for dashboards.
+
+**When the OTel metric adapter lands (v0.19.0)** it'll just be another sink:
+
+```go
+otelSink := otelmetric.NewSink(meter)            // future v0.19.0
+metered  := metrics.Wrap(inner, otelSink)        // same Wrap call as today
+```
+
+Same port, OTel-flavored backend. Consumers using the port today are forward-compatible — the OTel adapter doesn't change the contract.
 
 **Span name.** Override via `breotel.WithSpanName("pricing.rules.execute")` for callers running multiple distinct rule engines within one service:
 

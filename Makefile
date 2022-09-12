@@ -128,7 +128,7 @@ check-quickstart:
 # pins its own deps -- scientific harnesses use replace directives
 # back to the main module checkout.
 test-submodules:
-	@for d in scientific/v0.15.0 scientific/v0.15.0/experimental scientific/v0.17.0; do \
+	@for d in scientific/v0.15.0 scientific/v0.15.0/experimental scientific/v0.17.0 scientific/v0.18.0; do \
 	  if [ -f "$$d/go.mod" ]; then \
 	    echo "=== $$d ==="; \
 	    (cd "$$d" && $(GO) build ./...) || exit 1; \
