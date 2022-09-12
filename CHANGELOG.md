@@ -11,6 +11,65 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.18.0] - 2022-09-12
+
+Eighteenth minor release. Adds the **metrics port + decorator**: bre-go owns the typed `observability.ExecutionMetric` event and the `observability.ExecutionMetricSink` interface; backends (OTel, Prometheus, custom in-house systems) adapt to it via `observability/metrics.Wrap`. Hexagonal architecture: the decorator depends only on the port; nothing in bre-go core imports OTel, Prometheus, or any external metrics SDK. The OTel adapter ships in v0.19.0 when the upstream OTel metric SDK stabilizes; v0.18.0 consumers can write their own sink in ~50 LOC against the now-stable contract. Additive (no breaking changes from v0.17.x).
+
+### Added
+
+- `observability.ExecutionMetric` -- typed event with `Adapter`, `MatchedCount`, `MatchedNames`, `Duration`, `Err`, `Canceled`, `CancelReason`. `Err` and `(Canceled, CancelReason)` are mutually exclusive, encoding the v0.17 cancellation-is-not-error lesson into the data model itself.
+- `observability.ExecutionMetricSink` -- one-method interface `RecordExecution(ExecutionMetric)`. The hexagonal port.
+- `observability/metrics.Wrap(inner engine.Engine, sink observability.ExecutionMetricSink) engine.Engine` -- decorator that times Execute, classifies the outcome (success / true error / cancellation), and emits one event per call.
+- `observability/metrics.RecordingSink` -- thread-safe append-buffer reference implementation. `Records()` returns a defensive copy; `Reset()` clears. Useful for tests and for consumers who want a simple in-memory aggregation buffer.
+- Capability forwarding on the decorator: `RuleNames()`, `RuleInfos()`, `AddListener()`, `Unwrap()`. Same pattern as `observability/otel.Wrap` (v0.17.0).
+
+### Hexagonal architecture realized
+
+ADR-0043 documents the design rationale. The five SOLID principles map cleanly:
+
+- **Single Responsibility:** decorator times + classifies + emits; sink encodes for its backend. Neither does the other's work.
+- **Open/Closed:** new sinks plug in without touching the decorator. New decorators (audit, custom dashboards) plug in without touching anything that already works.
+- **Liskov Substitution:** decorator returns `engine.Engine`, substitutes everywhere.
+- **Interface Segregation:** the sink interface has one method. Backends use only the fields they need.
+- **Dependency Inversion:** bre-go core depends on its own abstraction; backends depend on it, not vice versa.
+
+Hexagonal: `engine.Engine` is the domain port at the center; the metrics decorator and each sink are adapters; the metric flow is one-directional `domain → port → adapter → external system`. bre-go core never imports a backend SDK.
+
+### Cancellation semantics carried forward from v0.17
+
+`context.Canceled` and `context.DeadlineExceeded` populate `Canceled = true` and `CancelReason` (`"canceled"` / `"deadline_exceeded"`) but leave `Err = nil`. Backends gating on `Err != nil` for error rates don't double-count cancellation as failure. This matches the v0.17 OTel span adapter behavior and applies the same lesson at the metric-event level.
+
+### What v0.19.0 will add
+
+The OTel metric adapter (`observability/otelmetric.NewSink(meter, opts...) observability.ExecutionMetricSink`) ships when the upstream OTel metric SDK stabilizes (target: ~mid-2023 in upstream-Go-time, matching OTel v1.16.0's metrics-GA release). Until then, v0.18.0 consumers can:
+
+- Use `RecordingSink` for tests.
+- Write their own sink against the port (~50 LOC).
+- Wait for v0.19.0 if they want the OTel-native path.
+
+### Pre-tag scientific review
+
+[`scientific/v0.18.0/REPORT.md`](scientific/v0.18.0/REPORT.md) tested ADR-0043's "the port enables others" claim concretely. Three independent sinks were written without coordinating with each other or importing any external SDK:
+
+- `ChannelSink` (39 LOC) -- non-blocking fanout for slow downstreams; tracks drops.
+- `AtomicCounterSink` (46 LOC) -- lock-free totals for hot paths.
+- `PercentileSink` (65 LOC) -- sliding-window p50/p95/p99.
+
+All three stack cleanly under nested `metrics.Wrap` calls. All three see the same event stream. None had to know about each other. The hexagonal claim holds in practice, not just in theory. The captured output is committed at `scientific/v0.18.0/results/sink-demo.txt`.
+
+### Documentation
+
+- README banner bumped to v0.18.0; Stability section adds the metrics port + decorator + reference sink bullet.
+- Cookbook gains an "Aggregate metrics with the metrics port" entry showing the canonical setup, the `ExecutionMetric` shape, the mutual-exclusion cancellation contract, and a sketch of how to write a custom sink.
+- ADR-0043 status: Proposed → Accepted (v0.18.0).
+
+### Testing
+
+- 18 unit tests in `observability/metrics/metrics_test.go` cover every documented behavior: one metric per Execute, every field on success, error path populates `Err` only, both cancellation sentinels populate `Canceled` + `CancelReason` only, caller-visible return value unchanged, RuleNames/RuleInfos/AddListener forwarding when inner supports them, nil/no-op when inner doesn't, Unwrap, defensive-copy semantics of `RecordingSink.Records`, `Reset`, concurrent safety under 16-goroutine × 100-call stress.
+- 100% coverage on the new `observability/metrics` package.
+
+ADR-0043 Accepted. 43 ADRs on `main`, 99.9% total coverage, 100% on the new package.
+
 ## [0.17.0] - 2022-08-29
 
 Seventeenth minor release. Adds the **OpenTelemetry adapter**: `observability/otel.Wrap(inner, tracer, opts...)` decorates any `engine.Engine` with one OpenTelemetry span per `Execute`. Matched rule names attached as a span attribute; correlation IDs from `engine.WithCorrelationID(ctx, id)` automatically tagged; cancellation distinguished from failure (caller intent gets dedicated `canceled` + `cancel.reason` attributes, not `codes.Error`); error path records the typed error including the offending rule name. Pinned to `go.opentelemetry.io/otel` v1.11.x for Go-1.18 compatibility, so consumers don't need to upgrade Go to pull v0.17.0. A pre-tag scientific review at [`scientific/v0.17.0/REPORT.md`](scientific/v0.17.0/REPORT.md) audited 11 production-mirroring scenarios and drove the cancellation-attributes design change before the tag. Additive (no breaking changes from v0.16.x).
