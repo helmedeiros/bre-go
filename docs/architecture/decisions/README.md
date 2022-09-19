@@ -69,3 +69,4 @@ Status markers: 📝 Proposed · ✅ Accepted · ⏳ Accepted (provisional) · �
 | [0041](0041-binary-snapshot-format.md) | Binary Snapshot Format (Pre-Bucketed) for engine/indexed | ✅ Accepted (v0.16.0) |
 | [0042](0042-opentelemetry-adapter.md) | OpenTelemetry Adapter for engine.Engine | ✅ Accepted (v0.17.0) |
 | [0043](0043-metrics-port-and-decorator.md) | Metrics Port and Decorator (Hexagonal) | ✅ Accepted (v0.18.0) |
+| [0044](0044-public-api-stability-tiers.md) | Public API Stability Tiers | 🟡 Proposed |
