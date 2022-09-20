@@ -32,10 +32,13 @@ func NewStructuredTelemetryListener(sink TelemetrySink) *StructuredTelemetryList
 	return &StructuredTelemetryListener{sink: sink}
 }
 
+// OnRuleMatched is a no-op; the listener emits one record per terminal lifecycle event, not per rule.
 func (l *StructuredTelemetryListener) OnRuleMatched(Match) {}
 
+// OnExecutionStarted is a no-op; the success-path record is emitted from OnExecutionFinished.
 func (l *StructuredTelemetryListener) OnExecutionStarted(interface{}) {}
 
+// OnExecutionFinished emits a record with Err nil.
 func (l *StructuredTelemetryListener) OnExecutionFinished(input, output interface{}, matched []string, duration time.Duration) {
 	l.sink(TelemetryRecord{
 		Input:    input,
@@ -45,6 +48,7 @@ func (l *StructuredTelemetryListener) OnExecutionFinished(input, output interfac
 	})
 }
 
+// OnExecutionErrored emits a record with Err set; OnExecutionFinished still fires afterwards with the partial result.
 func (l *StructuredTelemetryListener) OnExecutionErrored(input interface{}, err error) {
 	l.sink(TelemetryRecord{
 		Input: input,
