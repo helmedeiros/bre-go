@@ -3,17 +3,20 @@ package firstmatch
 import (
 	"errors"
 	"fmt"
+
+	"github.com/helmedeiros/bre-go/engine"
 )
 
 // ErrEmptyRuleName is returned by AddRule when Rule.Name is empty.
-var ErrEmptyRuleName = errors.New("firstmatch: rule name must not be empty")
+// Wraps engine.ErrEmptyRuleName.
+var ErrEmptyRuleName = fmt.Errorf("firstmatch: %w", engine.ErrEmptyRuleName)
 
 // ErrNilCondition is returned by AddRule when Rule.Condition is nil.
 var ErrNilCondition = errors.New("firstmatch: rule condition must not be nil")
 
 // ErrDuplicateRuleName is returned by AddRule when a rule with the same
-// name is already registered.
-var ErrDuplicateRuleName = errors.New("firstmatch: rule name already registered")
+// name is already registered. Wraps engine.ErrDuplicateRuleName.
+var ErrDuplicateRuleName = fmt.Errorf("firstmatch: %w", engine.ErrDuplicateRuleName)
 
 // ActionPanicError is returned by Execute when a rule's Action panicked.
 // The adapter recovered the panic; the matched rule name is in

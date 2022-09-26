@@ -29,6 +29,7 @@ All examples target `v0.2.0` or later. `context.Context` is the first parameter 
   - [Use the binary snapshot format](#use-the-binary-snapshot-format)
   - [Trace Execute with OpenTelemetry](#trace-execute-with-opentelemetry)
   - [Aggregate metrics with the metrics port](#aggregate-metrics-with-the-metrics-port)
+  - [Detect rule-registration errors across adapters](#detect-rule-registration-errors-across-adapters)
 
 ## Patterns
 
@@ -502,7 +503,7 @@ _ = e.AddRule(inmemory.Rule{
 
 The key used internally is an unexported type, so no other middleware can collide with it or read the value through `ctx.Value(string)("correlation-id")` guesses.
 
-Listeners do not yet receive `context.Context`; for now, observers wanting per-execution correlation either (a) attach a per-request listener that captures the ID in its closure or (b) emit the correlation via an `ActionContext` callback that runs on every relevant rule. A future ADR will add ctx-aware listener interfaces (`OnRuleMatchedCtx` and the lifecycle variants) once a real caller shapes the requirements.
+Listeners do not receive `context.Context`; observers wanting per-execution correlation either (a) attach a per-request listener that captures the ID in its closure or (b) emit the correlation via an `ActionContext` callback that runs on every relevant rule. For distributed-tracing scenarios the `observability/otel` decorator (v0.17.0+) handles the ctx-propagation case directly: it wraps `Execute`, so it sees the ctx the caller passed in and tags the span automatically.
 
 ### Write rule conditions as strings
 
@@ -839,7 +840,7 @@ Three things worth knowing:
 
 The four adapters differ in lifecycle:
 
-- `engine/inmemory`, `engine/firstmatch`, `engine/priority`: no explicit lifecycle. AddRule and Execute can interleave from a single goroutine. Not safe for concurrent Execute (will land in a future ADR if a real consumer asks).
+- `engine/inmemory`, `engine/firstmatch`, `engine/priority`: no explicit lifecycle. AddRule and Execute can interleave from a single goroutine. Not safe for concurrent Execute.
 - `engine/indexed` (since v0.12.0): explicit `Build()` + `Built()` methods. Pre-Build: AddRule / WithPostFilterHook allowed. Post-Build: Execute is concurrent-safe and lockless; AddRule returns `ErrEngineBuilt`; WithPostFilterHook panics. First Execute triggers implicit Build on an unsealed engine.
 
 ### Wire structured telemetry on any engine
@@ -1132,7 +1133,7 @@ This design was driven by the pre-tag scientific review documented in [`scientif
 
 ### Aggregate metrics with the metrics port
 
-Since `v0.18.0`, `observability/metrics.Wrap` decorates any `engine.Engine` with aggregate metric emission via the `observability.ExecutionMetricSink` port. The contract is bre-go's, not OTel's — backends adapt to it. The OTel metric adapter ships in v0.19.0; until then, consumers either use the built-in `RecordingSink` or write their own sink in ~50 LOC.
+Since `v0.18.0`, `observability/metrics.Wrap` decorates any `engine.Engine` with aggregate metric emission via the `observability.ExecutionMetricSink` port. The contract is bre-go's, not OTel's — backends adapt to it. Consumers either use the built-in `RecordingSink` or write their own sink in ~50 LOC.
 
 The typed event:
 
@@ -1210,15 +1211,6 @@ That's the entire interface contract satisfied. Lock-free, no external deps, fit
 
 **Choosing between metrics-port and the v0.13 `StructuredTelemetryListener`.** Both consume per-Execute data, but the listener is attached via `AddListener` (callback style) and doesn't see `ctx`; the metrics decorator wraps `engine.Engine` and does. The two coexist on the same inner engine — use the listener for log-pipeline emission, the metrics decorator for aggregate counters / histograms. The decorator's cancellation distinction (caller intent vs failure) is the operationally important advantage for dashboards.
 
-**When the OTel metric adapter lands (v0.19.0)** it'll just be another sink:
-
-```go
-otelSink := otelmetric.NewSink(meter)            // future v0.19.0
-metered  := metrics.Wrap(inner, otelSink)        // same Wrap call as today
-```
-
-Same port, OTel-flavored backend. Consumers using the port today are forward-compatible — the OTel adapter doesn't change the contract.
-
 **Span name.** Override via `breotel.WithSpanName("pricing.rules.execute")` for callers running multiple distinct rule engines within one service:
 
 ```go
@@ -1246,3 +1238,36 @@ if u, ok := traced.(interface{ Unwrap() engine.Engine }); ok {
 ```
 
 **No-op tracer is safe.** Passing a no-op TracerProvider (e.g., `noop.NewTracerProvider().Tracer("")`) produces no observable side effects — useful for tests that don't care about traces or for environments where OTel isn't configured.
+
+### Detect rule-registration errors across adapters
+
+Since `v0.19.0`, `engine.ErrEmptyRuleName` and `engine.ErrDuplicateRuleName` are port-level umbrella sentinels. A consumer writing adapter-agnostic registration code can check both in one place:
+
+```go
+import (
+    "errors"
+
+    "github.com/helmedeiros/bre-go/engine"
+)
+
+func register(addRule func() error) error {
+    err := addRule()
+    switch {
+    case errors.Is(err, engine.ErrEmptyRuleName):
+        return fmt.Errorf("rule config has no name: %w", err)
+    case errors.Is(err, engine.ErrDuplicateRuleName):
+        return fmt.Errorf("rule already registered: %w", err)
+    case err != nil:
+        return fmt.Errorf("register: %w", err)
+    }
+    return nil
+}
+```
+
+That same `register` function works whether `addRule` is closing over an `inmemory.Engine`, a `firstmatch.Engine`, a `priority.Engine`, or an `indexed.Engine` — every adapter returns errors that satisfy `errors.Is(err, engine.ErrEmptyRuleName)` and `errors.Is(err, engine.ErrDuplicateRuleName)` through the wrap chain.
+
+**Per-adapter checks still work.** Pre-v0.19 code using `errors.Is(err, inmemory.ErrEmptyRuleName)` keeps working unchanged because each adapter's per-package sentinel is a distinct wrap of the engine-level one. Both checks succeed on the same returned error.
+
+**Error message strings unchanged.** Log lines that contained `"inmemory: rule name must not be empty"` in v0.18.x contain the same byte-identical string in v0.19.0.
+
+**What stays adapter-specific.** `ErrNilCondition` (linear adapters) and `ErrNilMatch` (indexed adapter) are not unified. The field names differ — linear adapters have `Rule.Condition func(...)`; indexed has `Rule.Match parser.Condition` — and the sentinels track the field-name distinction. If your code reaches into adapter-specific Rule construction it should use the adapter-specific sentinel for the nil-predicate case.

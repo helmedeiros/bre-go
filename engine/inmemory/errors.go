@@ -3,14 +3,18 @@ package inmemory
 import (
 	"errors"
 	"fmt"
+
+	"github.com/helmedeiros/bre-go/engine"
 )
 
 // ErrEmptyRuleName is returned by AddRule when Rule.Name is empty.
-var ErrEmptyRuleName = errors.New("inmemory: rule name must not be empty")
+// Wraps engine.ErrEmptyRuleName so cross-adapter errors.Is(err,
+// engine.ErrEmptyRuleName) checks work.
+var ErrEmptyRuleName = fmt.Errorf("inmemory: %w", engine.ErrEmptyRuleName)
 
 // ErrDuplicateRuleName is returned by AddRule when a rule with the same
-// name is already registered.
-var ErrDuplicateRuleName = errors.New("inmemory: rule name already registered")
+// name is already registered. Wraps engine.ErrDuplicateRuleName.
+var ErrDuplicateRuleName = fmt.Errorf("inmemory: %w", engine.ErrDuplicateRuleName)
 
 // ErrNilCondition is returned by AddRule when Rule.Condition is nil.
 var ErrNilCondition = errors.New("inmemory: rule condition must not be nil")

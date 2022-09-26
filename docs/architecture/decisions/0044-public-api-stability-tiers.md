@@ -51,7 +51,7 @@ Reserved for symbols introduced as proof-of-concept or with explicit documentati
 | Tier | Symbol |
 |------|--------|
 | 1 | `Engine` interface, `Request`, `Result` |
-| 2 | `RuleInfo`, `RuleLister`, `RuleInfoLister`, `ListenerHost`, `WithCorrelationID`, `CorrelationIDFromContext`, `Load`, `RuleConfig`, `RuleConfigProvider`, `ChainProviders` |
+| 2 | `RuleInfo`, `RuleLister`, `RuleInfoLister`, `ListenerHost`, `WithCorrelationID`, `CorrelationIDFromContext`, `Load`, `RuleConfig`, `RuleConfigProvider`, `ChainProviders`, `ErrEmptyRuleName`, `ErrDuplicateRuleName` |
 
 The port + its value types (`Request`, `Result`) are frozen. Every adapter implements `Execute(ctx, req) (Result, error)` and has done so since v0.1.0. Any change to that signature cascades through every adapter and every consumer; it's the contract.
 
@@ -155,7 +155,7 @@ These are surfaces where the current implementation works but the documented com
 
 - **`engine/indexed.PostFilterHook` + `WithPostFilterHook`.** Open per ADR-0040 §3 and ADR-0041 "not closed by v0.16.0." Hook-bearing engines refuse to snapshot, which is a known friction. Whatever ADR closes it may need to reshape the hook surface.
 - **`engine/indexed.PreClassifiedRule` family.** Shipped in v0.16.0 alongside the compiled snapshot but has had no operator-facing audit. Useful for a consumer loading rules from a pre-processed source; semantics may need clarification.
-- **Sentinel-error duplication across adapters.** `ErrEmptyRuleName` exists as a separate `var` in `engine/inmemory`, `engine/firstmatch`, `engine/priority`, and `engine/indexed`. Each is a distinct value. Consumers using `errors.Is` across adapters have to import each one or use the type's error string. A unified `engine.ErrEmptyRuleName` (and friends) at the port level would be cleaner — but the existing names are Stable, so this would be a deprecation cycle.
+- **Sentinel-error duplication across adapters.** ~~`ErrEmptyRuleName` exists as a separate `var` in `engine/inmemory`, `engine/firstmatch`, `engine/priority`, and `engine/indexed`. Each is a distinct value.~~ **Addressed in v0.19.0 by ADR-0045**: `engine.ErrEmptyRuleName` + `engine.ErrDuplicateRuleName` ship as port-level umbrella sentinels; each adapter's existing variable now wraps the engine-level one via `fmt.Errorf("%s: %w", ...)`. `errors.Is(err, engine.ErrEmptyRuleName)` works across all four adapters; pre-v0.19 consumers using the per-adapter sentinel keep working unchanged. The `ErrNilCondition` / `ErrNilMatch` pair stays adapter-specific because the field names differ — that distinction is preserved deliberately.
 
 ## Consequences
 

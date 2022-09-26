@@ -11,9 +11,41 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 _Nothing yet. New entries land here._
 
+## [0.19.0] - 2022-09-26
+
+Nineteenth minor release. Adds `engine.ErrEmptyRuleName` and `engine.ErrDuplicateRuleName` as port-level umbrella sentinels. Each adapter's existing per-package sentinel keeps its name and its message but is rewritten to wrap the engine-level one via `fmt.Errorf("<adapter>: %w", engine.ErrXxx)`. Consumers can now write a single `errors.Is(err, engine.ErrEmptyRuleName)` check that handles all four adapters; pre-v0.19 consumers using the per-adapter sentinel keep working unchanged. Closes one of the three "soft spots" ADR-0044's stability audit named. Additive (no breaking changes from v0.18.x).
+
+### Added
+
+- `engine.ErrEmptyRuleName` -- port-level umbrella sentinel for "Rule.Name is empty." Every adapter's per-adapter `ErrEmptyRuleName` wraps this one.
+- `engine.ErrDuplicateRuleName` -- port-level umbrella sentinel for "a rule with this name is already registered." Same wrap pattern.
+
+### Changed
+
+- `engine/inmemory.ErrEmptyRuleName`, `engine/firstmatch.ErrEmptyRuleName`, `engine/priority.ErrEmptyRuleName`, `engine/indexed.ErrEmptyRuleName` -- now wrap `engine.ErrEmptyRuleName`. The variable name, the value identity (each is still a distinct `error`), and the string message are all preserved.
+- Same change for `ErrDuplicateRuleName` across the four adapters.
+
+### Backward compatibility
+
+- `errors.Is(err, inmemory.ErrEmptyRuleName)` returns the same answer as before. Same for all four adapters and both sentinels.
+- Error message strings are byte-identical to v0.18.0.
+- No public method signature changes.
+
+### Documentation
+
+- README Stability section adds `engine.ErrEmptyRuleName` and `engine.ErrDuplicateRuleName` to the engine package bullet.
+- ADR-0045 (Accepted) documents the design, the wrap-vs-alias-vs-typed-error tradeoff, and the test strategy.
+- ADR-0044's "Symbols at risk before any contract freeze" list strikes through the sentinel-error duplication item with an inline reference.
+
+### Testing
+
+- 4 new test groups in `engine/cross_adapter_errors_test.go`: umbrella check (4 subtests, one per adapter, both sentinels), backward-compat proof (8 subtests), message-unchanged proof (8 assertions).
+
+ADR-0045 Accepted. 45 ADRs on `main`, 99.9% total coverage.
+
 ## [0.18.0] - 2022-09-12
 
-Eighteenth minor release. Adds the **metrics port + decorator**: bre-go owns the typed `observability.ExecutionMetric` event and the `observability.ExecutionMetricSink` interface; backends (OTel, Prometheus, custom in-house systems) adapt to it via `observability/metrics.Wrap`. Hexagonal architecture: the decorator depends only on the port; nothing in bre-go core imports OTel, Prometheus, or any external metrics SDK. The OTel adapter ships in v0.19.0 when the upstream OTel metric SDK stabilizes; v0.18.0 consumers can write their own sink in ~50 LOC against the now-stable contract. Additive (no breaking changes from v0.17.x).
+Eighteenth minor release. Adds the **metrics port + decorator**: bre-go owns the typed `observability.ExecutionMetric` event and the `observability.ExecutionMetricSink` interface; backends (OTel, Prometheus, custom in-house systems) adapt to it via `observability/metrics.Wrap`. Hexagonal architecture: the decorator depends only on the port; nothing in bre-go core imports OTel, Prometheus, or any external metrics SDK. v0.18.0 consumers wanting an OTel-native sink write their own (~50 LOC against the port). Additive (no breaking changes from v0.17.x).
 
 ### Added
 
@@ -39,13 +71,9 @@ Hexagonal: `engine.Engine` is the domain port at the center; the metrics decorat
 
 `context.Canceled` and `context.DeadlineExceeded` populate `Canceled = true` and `CancelReason` (`"canceled"` / `"deadline_exceeded"`) but leave `Err = nil`. Backends gating on `Err != nil` for error rates don't double-count cancellation as failure. This matches the v0.17 OTel span adapter behavior and applies the same lesson at the metric-event level.
 
-### What v0.19.0 will add
+### OTel-native sinks
 
-The OTel metric adapter (`observability/otelmetric.NewSink(meter, opts...) observability.ExecutionMetricSink`) ships when the upstream OTel metric SDK stabilizes (target: ~mid-2023 in upstream-Go-time, matching OTel v1.16.0's metrics-GA release). Until then, v0.18.0 consumers can:
-
-- Use `RecordingSink` for tests.
-- Write their own sink against the port (~50 LOC).
-- Wait for v0.19.0 if they want the OTel-native path.
+v0.18.0 ships the port + the `RecordingSink` reference implementation. Consumers wanting an OTel-native sink write their own ~50 LOC against the upstream OTel metric API; bre-go's port is intentionally backend-agnostic.
 
 ### Pre-tag scientific review
 
@@ -350,7 +378,7 @@ Apple M4 / Go 1.18 / equality-only workloads:
 
 Same shape with 9× OpIn fan-out per rule: indexed at 1k=2.27ms, 10k=27ms; still wins asymptotically at 10k.
 
-Load is not gated by `ci-local` today -- the section is reference material for release prep and adapter-choice decisions. A future ADR may promote it to a hard gate when the v0.12.0 concurrency / hot-reload work needs a frozen load-time baseline.
+Load is not gated by `ci-local` today -- the section is reference material for release prep and adapter-choice decisions.
 
 ## [0.9.0] - 2022-06-22
 
@@ -466,7 +494,7 @@ Fourth minor release. Closes Phase 2's rule-loading + observability extensions. 
 
 - `engine.ChainProviders[RC](providers...)` -- multi-source rule composition. Combines multiple `RuleConfigProvider[RC]` into one; concatenates outputs in argument order; first-error short-circuits. Zero-arg call returns an empty provider (identity element). ADR-0025.
 - `engine.WithCorrelationID(ctx, id)` and `engine.CorrelationIDFromContext(ctx)` -- standard helpers for stamping a request-scoped identifier on `context.Context`. Unexported key type prevents collisions. `ConditionContext` / `ActionContext` callbacks recover the ID inside `Execute`. ADR-0026.
-- Cookbook gains two sections: "Compose rules from multiple sources" and "Propagate correlation IDs", with the canonical wiring patterns and the documented per-request-listener workaround until ctx-aware listener interfaces land in a future ADR.
+- Cookbook gains two sections: "Compose rules from multiple sources" and "Propagate correlation IDs", with the canonical wiring patterns and the documented per-request-listener workaround.
 - README Stability section adds the new four helpers; Toolkit row for engine names the loader and correlation helpers explicitly.
 
 ## [0.3.0] - 2022-05-06

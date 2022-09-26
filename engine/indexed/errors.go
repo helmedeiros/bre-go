@@ -3,17 +3,20 @@ package indexed
 import (
 	"errors"
 	"fmt"
+
+	"github.com/helmedeiros/bre-go/engine"
 )
 
 // ErrEmptyRuleName is returned by AddRule when Rule.Name is empty.
-var ErrEmptyRuleName = errors.New("indexed: rule name must not be empty")
+// Wraps engine.ErrEmptyRuleName.
+var ErrEmptyRuleName = fmt.Errorf("indexed: %w", engine.ErrEmptyRuleName)
 
 // ErrNilMatch is returned by AddRule when Rule.Match is nil.
 var ErrNilMatch = errors.New("indexed: rule match must not be nil")
 
 // ErrDuplicateRuleName is returned by AddRule when a rule with the
-// same name is already registered.
-var ErrDuplicateRuleName = errors.New("indexed: rule name already registered")
+// same name is already registered. Wraps engine.ErrDuplicateRuleName.
+var ErrDuplicateRuleName = fmt.Errorf("indexed: %w", engine.ErrDuplicateRuleName)
 
 // ErrNonIndexableCondition is returned by AddRule when Match contains
 // a shape the engine does not recognize as indexable or as a valid
