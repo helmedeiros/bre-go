@@ -11,7 +11,7 @@ jobs:
     name: lint + vet + test + cover
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v3
