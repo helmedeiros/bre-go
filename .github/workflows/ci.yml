@@ -11,19 +11,12 @@ jobs:
     name: lint + vet + test + cover
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v7
         with:
           go-version: "1.18"
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-
 
       - name: Install golangci-lint
         run: |
