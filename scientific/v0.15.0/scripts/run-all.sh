@@ -43,8 +43,8 @@ SUMMARY="$RESULTS/SUMMARY.txt"
 log()  { printf '\n=== %s ===\n' "$*" | tee -a "$SUMMARY" >&2; }
 note() { printf '%s\n' "$*"          | tee -a "$SUMMARY" >&2; }
 
-run_native() { docker run --rm --cpus 1 --memory 1g -v "$RESULTS:/data" "$ARM_IMAGE" -c "$1"; }
-run_amd64()  { docker run --rm --platform linux/amd64 --cpus 1 --memory 1g -v "$RESULTS:/data" "$AMD_IMAGE" -c "$1"; }
+run_native() { docker run --rm --user "$(id -u):$(id -g)" --cpus 1 --memory 1g -v "$RESULTS:/data" "$ARM_IMAGE" -c "$1"; }
+run_amd64()  { docker run --rm --user "$(id -u):$(id -g)" --platform linux/amd64 --cpus 1 --memory 1g -v "$RESULTS:/data" "$AMD_IMAGE" -c "$1"; }
 
 failed=0
 
